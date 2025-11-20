@@ -39,23 +39,65 @@ export default {
       }
 
       try {
-        // GET: Retrieve data from KV
+        // GET: Retrieve and Aggregate Data
         if (request.method === "GET") {
-          const dataString = await env.STAR_DATA.get(familyId);
-          const data = dataString ? JSON.parse(dataString) : null;
+          // Fetch all potential keys in parallel
+          const [legacyRaw, tasksRaw, rewardsRaw, settingsRaw, activityRaw] = await Promise.all([
+            env.STAR_DATA.get(familyId),
+            env.STAR_DATA.get(`${familyId}:tasks`),
+            env.STAR_DATA.get(`${familyId}:rewards`),
+            env.STAR_DATA.get(`${familyId}:settings`),
+            env.STAR_DATA.get(`${familyId}:activity`)
+          ]);
+
+          const legacy = legacyRaw ? JSON.parse(legacyRaw) : {};
+          const tasks = tasksRaw ? JSON.parse(tasksRaw) : null;
+          const rewards = rewardsRaw ? JSON.parse(rewardsRaw) : null;
+          const settings = settingsRaw ? JSON.parse(settingsRaw) : null;
+          const activity = activityRaw ? JSON.parse(activityRaw) : null;
+
+          // Merge strategy: New Key > Legacy Key > Default
+          const data = {
+            tasks: tasks || legacy.tasks || [],
+            rewards: rewards || legacy.rewards || [],
+            // Settings
+            userName: settings?.userName ?? legacy.userName ?? "",
+            themeKey: settings?.themeKey ?? legacy.themeKey ?? "lemon",
+            // Activity
+            logs: activity?.logs || legacy.logs || {},
+            balance: activity?.balance ?? legacy.balance ?? 0,
+            transactions: activity?.transactions || legacy.transactions || []
+          };
           
           return new Response(JSON.stringify({ data }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
-        // POST: Save data to KV
+        // POST: Save Data (Split by scope)
         if (request.method === "POST") {
           const body = await request.json();
+          const { scope, data } = body;
           
-          // Save to Cloudflare KV (Key: familyId, Value: JSON string)
-          // Expiration is optional, data persists indefinitely by default
-          await env.STAR_DATA.put(familyId, JSON.stringify(body));
+          if (!scope) {
+             // Fallback: If no scope provided, attempt to save as legacy (full blob)
+             // This ensures backward compatibility if frontend hasn't updated
+             if (body.tasks) {
+                 await env.STAR_DATA.put(familyId, JSON.stringify(body));
+                 return new Response(JSON.stringify({ success: true, mode: 'legacy' }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                 });
+             }
+             return new Response(JSON.stringify({ error: "Missing scope in payload" }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+             });
+          }
+
+          // Save to specific KV key based on scope
+          // Keys: familyId:tasks, familyId:rewards, familyId:settings, familyId:activity
+          const key = `${familyId}:${scope}`;
+          await env.STAR_DATA.put(key, JSON.stringify(data));
 
           return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },

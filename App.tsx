@@ -9,7 +9,7 @@ import { Header } from './components/Header';
 import { DateNavigator } from './components/DateNavigator';
 import { CelebrationOverlay } from './components/CelebrationOverlay';
 import { NavBar } from './components/NavBar';
-import { cloudService, CloudData } from './services/cloud';
+import { cloudService, CloudData, DataScope } from './services/cloud';
 
 // --- Constants for UI ---
 const COMMON_EMOJIS = [
@@ -70,7 +70,6 @@ export default function App() {
   // Modal States
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
-  // Only show name modal if no username AND no family ID (checking family ID handles the case where user wiped local storage but wants to login)
   const [isNameModalOpen, setIsNameModalOpen] = useState(!localStorage.getItem('app_family_id') && !localStorage.getItem('app_username'));
   const [onboardingMode, setOnboardingMode] = useState<'create' | 'join'>('create');
   const [joinInputId, setJoinInputId] = useState('');
@@ -102,69 +101,78 @@ export default function App() {
 
   // --- CLOUD SYNC LOGIC ---
 
-  // 1. Initialization: If Family ID exists, load data first.
+  // 1. Initialization
   useEffect(() => {
     if (familyId) {
-      // We have an ID from localStorage. Do NOT enable syncReady yet.
-      // We must load the cloud data first to avoid overwriting it with local stale data.
       handleCloudLoad(familyId, true);
     }
-  }, []); // Run once on mount
+  }, []);
 
-  // 2. Auto-Save for Critical Data (Fast Response)
+  // Helper to sync specific scope
+  const syncData = async (scope: DataScope, data: any, silent = false) => {
+      if (!familyId) return;
+      if (!silent) setSyncStatus('syncing');
+      
+      const success = await cloudService.saveData(familyId, scope, data);
+      
+      if (success) {
+          setSyncStatus('saved');
+          if (!silent) setTimeout(() => setSyncStatus('idle'), 2000);
+      } else {
+          setSyncStatus('error');
+      }
+  };
+
+  // 2. Auto-Save Effects (Split by Scope)
+  // Note: isSyncReady check prevents saving data back immediately after loading it from cloud on startup.
+  
+  // Scope: Tasks
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
+    const t = setTimeout(() => syncData('tasks', tasks, true), 500);
+    return () => clearTimeout(t);
+  }, [tasks, familyId]); // DO NOT add isSyncReady to deps
 
-    // Fast debounce for critical interactions (completing tasks, spending points)
-    // This ensures data is pushed almost immediately after action, preventing sync race conditions on tab switch.
-    const timer = setTimeout(() => {
-      handleCloudSave(true); // Silent save
-    }, 500); 
-
-    return () => clearTimeout(timer);
-  }, [tasks, rewards, logs, balance, transactions, themeKey, familyId, isSyncReady]);
-
-  // 3. Auto-Save for User Name (Slow Debounce)
+  // Scope: Rewards
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
-    // Slower debounce for typing to avoid spamming requests
-    const timer = setTimeout(() => {
-        handleCloudSave(true);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [userName, familyId, isSyncReady]);
+    const t = setTimeout(() => syncData('rewards', rewards, true), 500);
+    return () => clearTimeout(t);
+  }, [rewards, familyId]);
 
-  // 4. Tab Switch Refresh: When switching tabs, pull latest data
+  // Scope: Activity (Logs, Balance, Transactions)
   useEffect(() => {
-    // Only pull if we are not currently blocking interaction (meaning a save/animation might be in progress)
+    if (!familyId || !isSyncReady) return;
+    const t = setTimeout(() => syncData('activity', { logs, balance, transactions }, true), 500);
+    return () => clearTimeout(t);
+  }, [logs, balance, transactions, familyId]);
+
+  // Scope: Settings (User, Theme)
+  useEffect(() => {
+    if (!familyId || !isSyncReady) return;
+    const t = setTimeout(() => syncData('settings', { userName, themeKey }, true), 1500);
+    return () => clearTimeout(t);
+  }, [userName, themeKey, familyId]);
+
+
+  // 4. Tab Switch Refresh
+  useEffect(() => {
     if (familyId && isSyncReady && !isInteractionBlocked) {
         handleCloudLoad(familyId, true);
     }
   }, [activeTab]);
 
-  const handleCloudSave = async (silent = false) => {
+  const handleManualSaveAll = async () => {
     if (!familyId) return;
-    if (!silent) setSyncStatus('syncing');
-    
-    const data = {
-      tasks,
-      rewards,
-      logs,
-      balance,
-      transactions,
-      themeKey,
-      userName
-    };
-
-    const success = await cloudService.saveData(familyId, data);
-    if (success) {
-      setSyncStatus('saved');
-      if (!silent) {
-        setTimeout(() => setSyncStatus('idle'), 2000);
-      }
-    } else {
-      setSyncStatus('error');
-    }
+    setSyncStatus('syncing');
+    await Promise.all([
+        cloudService.saveData(familyId, 'tasks', tasks),
+        cloudService.saveData(familyId, 'rewards', rewards),
+        cloudService.saveData(familyId, 'settings', { userName, themeKey }),
+        cloudService.saveData(familyId, 'activity', { logs, balance, transactions })
+    ]);
+    setSyncStatus('saved');
+    setTimeout(() => setSyncStatus('idle'), 2000);
   };
 
   const handleCloudLoad = async (targetFamilyId: string, silent = false) => {
@@ -174,7 +182,6 @@ export default function App() {
     try {
       const data = await cloudService.loadData(targetFamilyId);
       if (data) {
-        // Update all state from cloud
         if (data.tasks) setTasks(data.tasks);
         if (data.rewards) setRewards(data.rewards);
         if (data.logs) setLogs(data.logs);
@@ -184,7 +191,6 @@ export default function App() {
         if (data.userName) setUserName(data.userName);
         
         setSyncStatus('saved');
-        // Important: Data loaded successfully, NOW we can allow auto-saves.
         setIsSyncReady(true);
 
         if (!silent) {
@@ -196,7 +202,6 @@ export default function App() {
             });
         }
       } else {
-        // ID not found or empty data. 
         if (!silent) alert('未找到该家庭ID的数据，可能是新ID。');
         setIsSyncReady(true);
         setSyncStatus('idle');
@@ -207,7 +212,6 @@ export default function App() {
     }
   };
 
-  // New User / Onboarding Handlers
   const handleStartAdventure = async () => {
     if (!userName.trim()) return;
     
@@ -216,17 +220,14 @@ export default function App() {
     setIsNameModalOpen(false);
     setIsSyncReady(true);
     
+    // Save initial state using parallel requests
     setTimeout(async () => {
-        const initialData = {
-            tasks: INITIAL_TASKS,
-            rewards: INITIAL_REWARDS,
-            logs: {},
-            balance: 0,
-            transactions: [],
-            themeKey: 'lemon',
-            userName: userName
-        };
-        await cloudService.saveData(newId, initialData);
+        await Promise.all([
+            cloudService.saveData(newId, 'tasks', INITIAL_TASKS),
+            cloudService.saveData(newId, 'rewards', INITIAL_REWARDS),
+            cloudService.saveData(newId, 'settings', { userName: userName, themeKey: 'lemon' }),
+            cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] })
+        ]);
         triggerStarConfetti();
     }, 100);
   };
@@ -236,7 +237,7 @@ export default function App() {
       
       setFamilyId(joinInputId);
       setIsNameModalOpen(false);
-      setIsSyncReady(false); // Disable sync until loaded
+      setIsSyncReady(false);
 
       await handleCloudLoad(joinInputId, false);
   };
@@ -245,7 +246,7 @@ export default function App() {
     const newId = cloudService.generateFamilyId();
     setFamilyId(newId);
     setIsSyncReady(true);
-    setTimeout(() => handleCloudSave(), 100);
+    setTimeout(() => handleManualSaveAll(), 100);
   };
 
   const copyFamilyId = () => {
@@ -256,15 +257,11 @@ export default function App() {
   // Celebration Timer & Interaction Blocker
   useEffect(() => {
     if (showCelebration.show) {
-      // Block interaction when celebration starts
       setIsInteractionBlocked(true);
-      
       const timer = setTimeout(() => {
         setShowCelebration(prev => ({ ...prev, show: false }));
-        // Unblock interaction when celebration ends
         setIsInteractionBlocked(false);
       }, 2000);
-      
       return () => clearTimeout(timer);
     }
   }, [showCelebration.show]);
@@ -420,7 +417,7 @@ export default function App() {
     return getDateKey(txDate) === dateKey;
   });
 
-  // Updated Calculation Logic for Stats
+  // Stats Logic
   let dailyEarned = 0;
   let dailySpent = 0;
 
@@ -432,24 +429,19 @@ export default function App() {
           dailySpent += Math.abs(tx.amount);
       } else if (isUndo) {
           if (tx.amount < 0) {
-              // Undoing a positive task (reducing earned)
               dailyEarned -= Math.abs(tx.amount);
           } else {
-              // Undoing a negative task (reversing penalty -> reducing spent)
               dailySpent -= tx.amount;
           }
       } else {
-          // Normal task or penalty
           if (tx.amount > 0) {
               dailyEarned += tx.amount;
           } else {
-              // Penalty counts as spent (negative progress)
               dailySpent += Math.abs(tx.amount);
           }
       }
   });
 
-  // Render Helpers
   const renderTaskList = (category: TaskCategory) => {
     const categoryTasks = tasks.filter(t => t.category === category);
     const completedIds = logs[dateKey] || [];
@@ -510,7 +502,6 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${activeTheme.bg || 'bg-[#FFF9F0]'} pb-28 transition-colors duration-500`}>
-      {/* Interaction Blocker Overlay */}
       {isInteractionBlocked && <div className="fixed inset-0 z-[40] bg-transparent cursor-wait" />}
       
       <CelebrationOverlay isVisible={showCelebration.show} points={showCelebration.points} type={showCelebration.type} />
@@ -519,7 +510,6 @@ export default function App() {
 
       <div className="max-w-5xl mx-auto pt-2 px-4 md:px-6">
         
-        {/* --- DAILY VIEW --- */}
         {activeTab === 'daily' && (
           <>
             <DateNavigator date={currentDate} setDate={setCurrentDate} themeKey={themeKey} />
@@ -539,7 +529,6 @@ export default function App() {
           </>
         )}
 
-        {/* --- STORE VIEW --- */}
         {activeTab === 'store' && (
           <div className="py-4 animate-slide-up">
             <h2 className={`text-xl font-cute mb-4 flex items-center ml-2 ${activeTheme.accent}`}>
@@ -570,7 +559,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- CALENDAR/HISTORY VIEW --- */}
         {activeTab === 'calendar' && (
            <div className="py-4 animate-slide-up max-w-3xl mx-auto">
                <h2 className={`text-xl font-cute mb-4 flex items-center ml-2 ${activeTheme.accent}`}>
@@ -618,7 +606,6 @@ export default function App() {
            </div>
         )}
 
-        {/* --- SETTINGS VIEW --- */}
         {activeTab === 'settings' && (
             <div className="py-4 pb-20 animate-slide-up">
                 <h2 className="text-xl font-cute text-slate-700 mb-4 flex items-center ml-2">
@@ -626,7 +613,6 @@ export default function App() {
                     设置管理
                 </h2>
 
-                {/* User Profile */}
                  <div className="bg-white rounded-[1.8rem] p-4 mb-6 shadow-sm border border-slate-100 flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <div className={`${activeTheme.light} p-2.5 rounded-full`}>
@@ -648,7 +634,6 @@ export default function App() {
                     </button>
                 </div>
 
-                {/* Cloud Sync Section */}
                 <div className={`bg-white rounded-[1.8rem] p-5 mb-6 shadow-sm border-2 ${familyId ? activeTheme.border : 'border-slate-100'}`}>
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
@@ -682,7 +667,6 @@ export default function App() {
                                     className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-xl px-3 outline-none focus:border-slate-300 text-slate-700 font-mono text-sm"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
-                                            // Handle join directly
                                             setJoinInputId(e.currentTarget.value);
                                             handleJoinFamily();
                                         }
@@ -713,7 +697,7 @@ export default function App() {
                              
                              <div className="grid grid-cols-2 gap-3">
                                  <button 
-                                     onClick={() => handleCloudSave()}
+                                     onClick={() => handleManualSaveAll()}
                                      className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold bg-white border-2 hover:bg-slate-50 transition-colors ${activeTheme.border} ${activeTheme.accent}`}
                                  >
                                      <Upload size={16}/> 手动上传
@@ -738,7 +722,6 @@ export default function App() {
                     )}
                 </div>
 
-                {/* Theme Selector */}
                 <div className="bg-white rounded-[1.8rem] p-5 mb-6 shadow-sm border border-slate-100">
                     <div className="flex items-center gap-2 mb-4">
                         <Palette className="text-slate-400 w-4 h-4" />
@@ -765,7 +748,6 @@ export default function App() {
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-5 items-start">
-                    {/* Task Management */}
                     <div>
                         <div className="flex justify-between items-center mb-2 px-2">
                             <h3 className="font-bold text-slate-600 text-base">任务列表</h3>
@@ -796,7 +778,6 @@ export default function App() {
                         </div>
                     </div>
 
-                    {/* Reward Management */}
                     <div>
                          <div className="flex justify-between items-center mb-2 px-2">
                             <h3 className="font-bold text-slate-600 text-base">奖励列表</h3>
@@ -826,7 +807,6 @@ export default function App() {
                     </div>
                 </div>
                 
-                {/* Reset */}
                 <button 
                     onClick={() => {
                         if(window.confirm("警告：这将清空所有数据！确定吗？")) {
@@ -844,9 +824,6 @@ export default function App() {
 
       <NavBar activeTab={activeTab} setActiveTab={setActiveTab} themeKey={themeKey} />
 
-      {/* --- MODALS --- */}
-
-      {/* Onboarding Modal (Name + Family ID) */}
       {isNameModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
               <div className={`bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center animate-pop border-4 ${activeTheme.border} overflow-hidden`}>
@@ -913,7 +890,6 @@ export default function App() {
           </div>
       )}
       
-      {/* Task Modal */}
       {isTaskModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
             <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-fade-in border-4 border-white">
@@ -991,7 +967,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Reward Modal */}
       {isRewardModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
              <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-fade-in border-4 border-white">
