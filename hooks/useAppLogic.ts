@@ -88,6 +88,17 @@ export const useAppLogic = () => {
     setToast(prev => ({ ...prev, show: false }));
   }, []);
 
+  const speak = useCallback((text: string) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN';
+      utterance.rate = 1;
+      utterance.pitch = 1.1;
+      window.speechSynthesis.speak(utterance);
+    }
+  }, []);
+
   // Safe confetti wrapper
   const safeConfetti = (opts: any) => {
       try {
@@ -293,9 +304,12 @@ export const useAppLogic = () => {
       if (task.category === TaskCategory.PENALTY) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
         triggerRainConfetti();
+        speak('下次要加油哦');
       } else {
         setShowCelebration({ show: true, points: task.stars, type: 'success' });
         triggerStarConfetti();
+        const name = userName ? userName : '小朋友';
+        speak(`${name}你太棒了`);
       }
     }
     setLogs({ ...logs, [dateKey]: newLog });
