@@ -12,7 +12,6 @@ import { DailyView } from './components/tabs/DailyView';
 import { StoreView } from './components/tabs/StoreView';
 import { CalendarView } from './components/tabs/CalendarView';
 import { SettingsView } from './components/tabs/SettingsView';
-import { GardenView } from './components/tabs/GardenView';
 
 // Modals
 import { OnboardingModal } from './components/modals/OnboardingModal';
@@ -54,13 +53,6 @@ export default function App() {
                 onToggleTask={actions.toggleTask}
                 themeKey={state.themeKey}
                 dateKey={state.dateKey}
-            />
-        )}
-
-        {state.activeTab === 'garden' && (
-            <GardenView 
-                transactions={state.transactions}
-                theme={activeTheme}
             />
         )}
 

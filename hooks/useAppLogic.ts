@@ -8,7 +8,7 @@ import { cloudService, DataScope } from '../services/cloud';
 import { ToastType } from '../components/Toast';
 
 export const useAppLogic = () => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'garden' | 'calendar' | 'settings'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings'>('daily');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // --- State ---

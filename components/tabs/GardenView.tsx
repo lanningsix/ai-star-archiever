@@ -1,281 +1,380 @@
-
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useRef, useState, Suspense } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Float, Text, SoftShadows, Html, useProgress } from '@react-three/drei';
+import * as THREE from 'three';
 import { Theme } from '../../styles/themes';
 import { Transaction } from '../../types';
-import { Sprout, Info, Trees, Mountain } from 'lucide-react';
+import { Sprout, Trees, Maximize, Info, Loader2 } from 'lucide-react';
+
+// Augment JSX namespace to satisfy R3F elements
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      group: any;
+      mesh: any;
+      boxGeometry: any;
+      meshStandardMaterial: any;
+      ambientLight: any;
+      directionalLight: any;
+      hemisphereLight: any;
+      planeGeometry: any;
+      fog: any;
+      shadowMaterial: any;
+      color: any;
+    }
+  }
+}
+
+// Augment React.JSX for newer React types
+declare module 'react' {
+  namespace JSX {
+    interface IntrinsicElements {
+      group: any;
+      mesh: any;
+      boxGeometry: any;
+      meshStandardMaterial: any;
+      ambientLight: any;
+      directionalLight: any;
+      hemisphereLight: any;
+      planeGeometry: any;
+      fog: any;
+      shadowMaterial: any;
+      color: any;
+    }
+  }
+}
 
 interface GardenViewProps {
   transactions: Transaction[];
   theme: Theme;
 }
 
-// Deterministic random generator
-const seededRandom = (seed: number) => {
-    const x = Math.sin(seed++) * 10000;
-    return x - Math.floor(x);
+// --- 3D Components (Voxel Style) ---
+
+const VoxelTree = ({ position, scale = 1, type = 0 }: { position: [number, number, number], scale?: number, type?: number }) => {
+    const group = useRef<any>(null);
+    // Random wobble
+    useFrame(({ clock }) => {
+        if(group.current) {
+            group.current.rotation.z = Math.sin(clock.getElapsedTime() + position[0]) * 0.03;
+        }
+    });
+
+    const color = type === 0 ? "#4CAF50" : type === 1 ? "#66BB6A" : "#81C784";
+    const trunkHeight = 1 * scale;
+
+    return (
+        <group ref={group} position={position}>
+             {/* Trunk */}
+             <mesh position={[0, trunkHeight/2, 0]} castShadow receiveShadow>
+                <boxGeometry args={[0.2 * scale, trunkHeight, 0.2 * scale]} />
+                <meshStandardMaterial color="#795548" />
+             </mesh>
+             {/* Leaves - Bottom Layer */}
+             <mesh position={[0, trunkHeight * 0.8, 0]} castShadow>
+                <boxGeometry args={[0.8 * scale, 0.4 * scale, 0.8 * scale]} />
+                <meshStandardMaterial color={color} />
+             </mesh>
+             {/* Leaves - Top Layer */}
+             <mesh position={[0, trunkHeight * 1.1, 0]} castShadow>
+                 <boxGeometry args={[0.5 * scale, 0.5 * scale, 0.5 * scale]} />
+                 <meshStandardMaterial color={color} />
+             </mesh>
+        </group>
+    );
+};
+
+const VoxelFlower = ({ position, color }: { position: [number, number, number], color: string }) => {
+    const group = useRef<any>(null);
+    useFrame(({ clock }) => {
+        if(group.current) {
+             group.current.rotation.y = Math.sin(clock.getElapsedTime() * 2 + position[0]) * 0.1;
+        }
+    });
+
+    return (
+        <group ref={group} position={position}>
+             {/* Stem */}
+             <mesh position={[0, 0.15, 0]}>
+                 <boxGeometry args={[0.05, 0.3, 0.05]} />
+                 <meshStandardMaterial color="#8BC34A" />
+             </mesh>
+             {/* Petals */}
+             <mesh position={[0, 0.3, 0]}>
+                 <boxGeometry args={[0.2, 0.2, 0.05]} />
+                 <meshStandardMaterial color={color} />
+             </mesh>
+             <mesh position={[0, 0.3, 0]}>
+                 <boxGeometry args={[0.05, 0.2, 0.2]} />
+                 <meshStandardMaterial color={color} />
+             </mesh>
+             {/* Center */}
+             <mesh position={[0, 0.3, 0.03]}>
+                 <boxGeometry args={[0.08, 0.08, 0.08]} />
+                 <meshStandardMaterial color="#FFF59D" />
+             </mesh>
+        </group>
+    );
+};
+
+const VoxelRabbit = ({ position }: { position: [number, number, number] }) => {
+    return (
+        <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
+            <group position={position}>
+                {/* Body */}
+                <mesh position={[0, 0.2, 0]} castShadow>
+                    <boxGeometry args={[0.4, 0.35, 0.5]} />
+                    <meshStandardMaterial color="#FFFFFF" />
+                </mesh>
+                {/* Head */}
+                <mesh position={[0, 0.45, 0.2]} castShadow>
+                    <boxGeometry args={[0.3, 0.3, 0.3]} />
+                    <meshStandardMaterial color="#FFFFFF" />
+                </mesh>
+                {/* Ears */}
+                <mesh position={[-0.1, 0.7, 0.2]} castShadow>
+                    <boxGeometry args={[0.08, 0.3, 0.08]} />
+                    <meshStandardMaterial color="#FCE4EC" />
+                </mesh>
+                <mesh position={[0.1, 0.7, 0.2]} castShadow>
+                    <boxGeometry args={[0.08, 0.3, 0.08]} />
+                    <meshStandardMaterial color="#FCE4EC" />
+                </mesh>
+                 {/* Tail */}
+                 <mesh position={[0, 0.15, -0.3]} castShadow>
+                    <boxGeometry args={[0.1, 0.1, 0.1]} />
+                    <meshStandardMaterial color="#EEEEEE" />
+                </mesh>
+            </group>
+        </Float>
+    );
+};
+
+const VoxelDuck = ({ position }: { position: [number, number, number] }) => {
+    return (
+        <Float speed={1.5} rotationIntensity={0.3} floatIntensity={0.5}>
+            <group position={position}>
+                {/* Body */}
+                <mesh position={[0, 0.2, 0]} castShadow>
+                    <boxGeometry args={[0.3, 0.25, 0.4]} />
+                    <meshStandardMaterial color="#FFEB3B" />
+                </mesh>
+                {/* Head */}
+                <mesh position={[0, 0.45, 0.15]} castShadow>
+                    <boxGeometry args={[0.2, 0.2, 0.2]} />
+                    <meshStandardMaterial color="#FFEB3B" />
+                </mesh>
+                {/* Beak */}
+                <mesh position={[0, 0.45, 0.3]}>
+                    <boxGeometry args={[0.1, 0.05, 0.15]} />
+                    <meshStandardMaterial color="#FF9800" />
+                </mesh>
+                {/* Wings */}
+                <mesh position={[0.18, 0.2, 0]}>
+                     <boxGeometry args={[0.05, 0.15, 0.25]} />
+                     <meshStandardMaterial color="#FDD835" />
+                </mesh>
+                <mesh position={[-0.18, 0.2, 0]}>
+                     <boxGeometry args={[0.05, 0.15, 0.25]} />
+                     <meshStandardMaterial color="#FDD835" />
+                </mesh>
+            </group>
+        </Float>
+    );
+};
+
+const LoadingScreen = () => {
+    const { progress } = useProgress();
+    return (
+        <Html center>
+            <div className="flex flex-col items-center justify-center bg-white/90 p-4 rounded-2xl shadow-lg backdrop-blur-sm">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mb-2" />
+                <span className="font-bold text-emerald-700 text-xs">{progress.toFixed(0)}% 加载中...</span>
+            </div>
+        </Html>
+    );
+};
+
+// --- Scene Logic ---
+
+const GardenScene = ({ growthScore }: { growthScore: number }) => {
+    const items = useMemo(() => {
+        const generated = [];
+        // Limit max items for performance
+        const density = Math.min(60, 5 + Math.floor(growthScore / 8));
+        const seed = 12345; // Fixed seed for stability
+
+        const random = (x: number) => {
+            const n = Math.sin(x * 12.9898 + seed) * 43758.5453;
+            return n - Math.floor(n);
+        };
+        
+        // Always generate base terrain items
+        for (let i = 0; i < density; i++) {
+            const r1 = random(i * 1.1);
+            const r2 = random(i * 2.2);
+            const angle = r1 * Math.PI * 2;
+            const radius = 2 + (r2 * 14); // Distribute from radius 2 to 16
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            let type = 'flower';
+            const scale = 0.8 + random(i * 3) * 0.4;
+
+            // Progression Logic
+            if (growthScore >= 0) {
+                type = random(i * 4) > 0.5 ? 'flower_1' : 'flower_2';
+            }
+            if (growthScore > 50 && random(i * 5) > 0.7) {
+                 type = 'tree_small';
+            }
+            if (growthScore > 150 && random(i * 6) > 0.8) {
+                 type = 'tree_big';
+            }
+            if (growthScore > 300 && i % 12 === 0) {
+                 type = 'rabbit';
+            }
+            if (growthScore > 500 && i % 15 === 0) {
+                 type = 'duck';
+            }
+
+            generated.push({ id: i, x, z, type, scale });
+        }
+        return generated;
+    }, [growthScore]);
+
+    return (
+        <>
+            <color attach="background" args={['#E0F7FA']} />
+            
+            {/* Lights */}
+            <ambientLight intensity={0.6} />
+            <directionalLight 
+                position={[10, 20, 5]} 
+                intensity={1.2} 
+                castShadow 
+                shadow-mapSize={[1024, 1024]}
+            />
+            <hemisphereLight args={['#81C784', '#388E3C', 0.4]} />
+            
+            {/* Fog */}
+            <fog attach="fog" args={['#E0F7FA', 10, 40]} />
+
+            {/* Ground */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+                <planeGeometry args={[100, 100]} />
+                <meshStandardMaterial color="#AED581" />
+            </mesh>
+            
+            {/* Center Podium */}
+            <mesh position={[0, 0.05, 0]} receiveShadow>
+                <boxGeometry args={[3, 0.1, 3]} />
+                <meshStandardMaterial color="#C5E1A5" />
+            </mesh>
+
+            {/* Items */}
+            {items.map((item) => (
+                <group key={item.id} position={[item.x, 0, item.z]}>
+                    {item.type === 'flower_1' && <VoxelFlower position={[0, 0, 0]} color="#F48FB1" />}
+                    {item.type === 'flower_2' && <VoxelFlower position={[0, 0, 0]} color="#FFF59D" />}
+                    {item.type === 'tree_small' && <VoxelTree position={[0, 0, 0]} scale={1.2} type={0} />}
+                    {item.type === 'tree_big' && <VoxelTree position={[0, 0, 0]} scale={2} type={1} />}
+                    {item.type === 'rabbit' && <VoxelRabbit position={[0, 0, 0]} />}
+                    {item.type === 'duck' && <VoxelDuck position={[0, 0, 0]} />}
+                </group>
+            ))}
+
+            {/* Title Text in 3D Space */}
+            <Float position={[0, 3, 0]} speed={1.5} rotationIntensity={0.1} floatIntensity={0.5}>
+                <Text
+                    font="https://fonts.gstatic.com/s/notosans/v27/o-0IIpQlx3QUlC5A4PNr5TRA.woff"
+                    fontSize={0.5}
+                    color="#33691E"
+                    anchorX="center"
+                    anchorY="middle"
+                    outlineWidth={0.02}
+                    outlineColor="white"
+                >
+                    {growthScore > 0 ? `${growthScore} 繁荣度` : "开始你的花园!"}
+                </Text>
+            </Float>
+        </>
+    );
 };
 
 export const GardenView: React.FC<GardenViewProps> = ({ transactions, theme }) => {
-  const [time, setTime] = useState(0);
-
-  // Animation loop for gentle movement
-  useEffect(() => {
-    const interval = setInterval(() => setTime(t => t + 1), 100);
-    return () => clearInterval(interval);
-  }, []);
-
   const growthScore = useMemo(() => {
       return transactions
         .filter(t => t.amount > 0)
         .reduce((acc, t) => acc + t.amount, 0);
   }, [transactions]);
 
-  // --- Logic: Ecosystem Generation ---
-  const gardenItems = useMemo(() => {
-      const items: Array<{ 
-          id: number, 
-          content: string, 
-          x: number, 
-          y: number, 
-          scale: number, 
-          z: number, 
-          blur: number,
-          type: 'plant' | 'animal' | 'flying',
-          flip: boolean
-      }> = [];
-      
-      // Cap density but allow it to feel lush
-      const density = Math.min(60, 5 + Math.floor(growthScore / 12)); 
-      
-      for (let i = 0; i < density; i++) {
-          const rnd = seededRandom(i * 137); 
-          const x = rnd * 94 + 3; // 3% to 97% width
-          
-          // Y represents depth (0 = far back, 100 = close front)
-          const depthRnd = seededRandom(i * 42);
-          const y = depthRnd * 40; // 0-40% from bottom
-
-          // Perspective calculations
-          const scale = 0.6 + (y / 40) * 1.2; // Far items are 0.6x, near are 1.8x
-          const zIndex = Math.floor(y * 10);
-          const blur = y < 10 ? 1 : 0; // Blur distant items slightly
-
-          // --- Biome Logic ---
-          let pool: string[] = ['🌱', '🌿']; // Default starter
-          let types: ('plant' | 'animal' | 'flying')[] = ['plant', 'plant'];
-
-          // Level 1: Flower Field (Score 50+)
-          if (growthScore > 50) {
-              pool.push('🌼', '🌻', '🌷', '🍄', '🌾');
-              types.push('plant', 'plant', 'plant', 'plant', 'plant');
-          }
-          // Level 2: Small Animals & Bushes (Score 150+)
-          if (growthScore > 150) {
-              pool.push('🌳', '🐌', '🦋', '🐝', '🪵');
-              types.push('plant', 'animal', 'flying', 'flying', 'plant');
-          }
-          // Level 3: Forest & Mammals (Score 300+)
-          if (growthScore > 300) {
-              pool.push('🌲', '🐇', '🐿️', '🦔', '🐦');
-              types.push('plant', 'animal', 'animal', 'animal', 'flying');
-          }
-          // Level 4: Deep Forest (Score 600+)
-          if (growthScore > 600) {
-              pool.push('🦌', '🦊', '🦉', '🌲', '🍄');
-              types.push('animal', 'animal', 'flying', 'plant', 'plant');
-          }
-          // Level 5: Magical (Score 1000+)
-          if (growthScore > 1000) {
-               pool.push('🦄', '✨', '🧚');
-               types.push('animal', 'flying', 'flying');
-          }
-
-          // Selection using weights (simulated by array duplication above or just random pick)
-          const pickIndex = Math.floor(seededRandom(i * 99) * pool.length);
-          const content = pool[pickIndex];
-          const type = types[pickIndex];
-
-          // Special override: Ensure rare animals appear at least once if level permits
-          let finalContent = content;
-          let finalType = type;
-
-          // Force a Unicorn if very high level and specific index
-          if (growthScore > 1000 && i === 0) { finalContent = '🦄'; finalType = 'animal'; }
-          else if (growthScore > 600 && i === 1) { finalContent = '🦌'; finalType = 'animal'; }
-          else if (growthScore > 300 && i === 2) { finalContent = '🐇'; finalType = 'animal'; }
-
-          items.push({
-              id: i,
-              content: finalContent,
-              x,
-              y, // This is "bottom %"
-              scale,
-              z: zIndex,
-              blur,
-              type: finalType,
-              flip: seededRandom(i * 7) > 0.5 // Randomly flip direction
-          });
-      }
-      
-      // Sort by Z-index (depth) so standard DOM stacking works
-      return items.sort((a, b) => a.z - b.z);
-  }, [growthScore]);
-
   return (
     <div className="py-4 animate-slide-up pb-28 relative">
        
        {/* Header */}
-       <div className="px-4 mb-4 flex justify-between items-end relative z-20">
+       <div className="px-4 mb-4 flex justify-between items-end">
            <div>
                 <h2 className={`text-xl font-cute flex items-center gap-2 ${theme.accent} drop-shadow-sm`}>
-                    <Trees className="w-6 h-6" /> 生态花园
+                    <Trees className="w-6 h-6" /> 3D 像素花园
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
-                    <div className="bg-white/80 backdrop-blur-sm text-emerald-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm border border-emerald-100">
-                        繁荣度: {growthScore}
-                    </div>
-                </div>
+                <p className="text-xs text-slate-400 mt-1">每一个好习惯，都能让花园更茂盛！</p>
            </div>
        </div>
 
-       {/* === SCENE CONTAINER === */}
-       <div className="relative w-full aspect-[4/5] sm:aspect-[4/3] rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] overflow-hidden mx-auto border-[6px] border-white ring-4 ring-slate-50 transform transition-transform hover:scale-[1.01] duration-500 bg-sky-200">
+       {/* WebGL Canvas Container - Fixed height to ensure rendering */}
+       <div className="relative w-full h-[450px] rounded-[2.5rem] shadow-xl overflow-hidden mx-auto border-4 border-white bg-slate-50">
            
-           {/* 1. Sky & Atmosphere */}
-           <div className="absolute inset-0 bg-gradient-to-b from-blue-400 via-sky-300 to-sky-100 z-0"></div>
-           
-           {/* Sun with Glow */}
-           <div className="absolute top-10 right-10 w-24 h-24 bg-amber-200 rounded-full blur-2xl opacity-60 z-0 animate-pulse"></div>
-           <div className="absolute top-14 right-14 w-16 h-16 bg-yellow-300 rounded-full blur-md z-0"></div>
+           <Canvas shadows camera={{ position: [0, 8, 12], fov: 45 }} dpr={[1, 2]}>
+                <Suspense fallback={<LoadingScreen />}>
+                    <SoftShadows size={5} samples={8} />
+                    <GardenScene growthScore={growthScore} />
+                    <OrbitControls 
+                        enablePan={false} 
+                        minPolarAngle={0} 
+                        maxPolarAngle={Math.PI / 2 - 0.1} 
+                        minDistance={5}
+                        maxDistance={25}
+                        autoRotate
+                        autoRotateSpeed={0.8}
+                    />
+                </Suspense>
+           </Canvas>
 
-           {/* Distant Mountains */}
-           <div className="absolute bottom-[30%] left-0 right-0 h-[40%] z-1 opacity-80">
-               <div className="absolute bottom-0 left-[-20%] w-[80%] h-full bg-indigo-300 rounded-tr-[100%] transform skew-y-3"></div>
-               <div className="absolute bottom-0 right-[-20%] w-[80%] h-[80%] bg-indigo-400 rounded-tl-[100%] transform -skew-y-2"></div>
+           <div className="absolute bottom-3 right-4 pointer-events-none">
+                <span className="text-[10px] bg-white/80 text-slate-500 px-2 py-1 rounded-full backdrop-blur-md shadow-sm">
+                    <Maximize size={12} className="inline mr-1"/> 360° 可旋转
+                </span>
            </div>
-
-           {/* Rolling Hills (Layers) */}
-           {/* Back Hill */}
-           <div className="absolute bottom-[15%] left-[-10%] w-[120%] h-[40%] bg-[#5ba878] rounded-[50%_50%_0_0] shadow-lg z-2 opacity-90"></div>
-           {/* Middle Hill */}
-           <div className="absolute bottom-[5%] right-[-20%] w-[140%] h-[40%] bg-[#4d9e68] rounded-[60%_60%_0_0] shadow-lg z-3"></div>
-           {/* Front Ground */}
-           <div className="absolute bottom-[-10%] left-0 w-full h-[30%] bg-gradient-to-t from-[#3b8a53] to-[#45a060] z-4"></div>
-
-           {/* 2. Items Placement */}
-           <div className="absolute inset-0 z-10">
-                {gardenItems.length === 0 && (
-                   <div className="absolute inset-0 flex items-center justify-center flex-col z-50 text-white drop-shadow-md">
-                       <Sprout size={48} className="mb-2 animate-bounce" />
-                       <p className="font-cute text-xl">做个任务，种下第一颗种子吧！</p>
-                   </div>
-               )}
-
-               {gardenItems.map((item) => (
-                   <div
-                        key={item.id}
-                        className="absolute flex justify-center items-end pointer-events-none"
-                        style={{
-                            left: `${item.x}%`,
-                            bottom: `${item.y + 5}%`, // Adjust base offset
-                            zIndex: item.z + 10, // Ensure above ground
-                            transition: 'all 0.5s ease-out',
-                        }}
-                   >
-                       {/* Shadow for realism */}
-                       <div 
-                            className="absolute bottom-1 w-8 h-3 bg-black/20 rounded-[100%] blur-[2px]"
-                            style={{
-                                transform: `scale(${item.scale}) translateX(${item.flip ? '5px' : '-5px'})`
-                            }}
-                       ></div>
-
-                       {/* The Item */}
-                       <div 
-                            className="relative text-4xl will-change-transform"
-                            style={{
-                                transform: `scale(${item.scale}) scaleX(${item.flip ? -1 : 1})`,
-                                filter: `blur(${item.blur}px) drop-shadow(0 4px 6px rgba(0,0,0,0.1))`,
-                                animation: item.type === 'flying' 
-                                    ? `float ${3 + (item.id % 3)}s ease-in-out infinite`
-                                    : `sway ${4 + (item.id % 4)}s ease-in-out infinite`,
-                                animationDelay: `${item.id * 0.2}s`
-                            }}
-                       >
-                           {item.content}
-                       </div>
-                   </div>
-               ))}
-           </div>
-
-           {/* Foreground Overlay (Vignette & Light) */}
-           <div className="absolute inset-0 pointer-events-none z-50 shadow-[inset_0_0_60px_rgba(0,0,0,0.1)] rounded-[2.5rem]"></div>
-           
-           {/* Fireflies / Pollen */}
-           <div className="absolute inset-0 z-20 pointer-events-none">
-               {[...Array(6)].map((_, i) => (
-                   <div 
-                        key={i}
-                        className="absolute w-1.5 h-1.5 bg-yellow-200 rounded-full animate-pulse blur-[1px]"
-                        style={{
-                            left: `${(i * 17) % 100}%`,
-                            top: `${40 + (i * 13) % 50}%`,
-                            opacity: 0.6,
-                            animationDuration: `${2 + i}s`
-                        }}
-                   ></div>
-               ))}
-           </div>
-
        </div>
 
-       {/* Stats / Legend */}
-       <div className="mt-6 mx-4 bg-white/60 backdrop-blur-xl rounded-[1.5rem] p-5 shadow-sm border border-white/50">
-            <div className="flex items-center gap-2 mb-3">
+       {/* Legend */}
+       <div className="mt-6 mx-4 bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center gap-2 mb-4">
                 <Info size={16} className="text-slate-400" />
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">生态图鉴</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">生态解锁进度</span>
             </div>
             
-            <div className="grid grid-cols-5 gap-2 text-center">
+            <div className="flex justify-between px-2">
                 {[
-                    { icon: '🌱', score: 0, label: '萌芽' },
-                    { icon: '🌼', score: 50, label: '花田' },
-                    { icon: '🌳', score: 150, label: '树丛' },
-                    { icon: '🦌', score: 300, label: '森林' },
-                    { icon: '🦄', score: 600, label: '秘境' },
-                ].map((tier) => (
-                    <div key={tier.label} className={`flex flex-col items-center transition-all duration-500 ${growthScore >= tier.score ? 'opacity-100 scale-110' : 'opacity-30 grayscale scale-90'}`}>
-                        <span className="text-2xl drop-shadow-sm mb-1 filter">{tier.icon}</span>
-                        <span className="text-[10px] font-bold text-slate-600">{tier.label}</span>
-                    </div>
-                ))}
-            </div>
-
-            <div className="mt-4 relative h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-300 to-lime-500 transition-all duration-1000 ease-out"
-                    style={{ width: `${Math.min(100, (growthScore / 600) * 100)}%` }}
-                ></div>
-            </div>
-            <div className="text-right mt-1">
-                 <span className="text-[10px] font-bold text-slate-400">
-                    {growthScore >= 600 ? '生态已达完美状态' : `下一阶段: ${
-                        growthScore < 50 ? 50 : growthScore < 150 ? 150 : growthScore < 300 ? 300 : 600
-                    }`}
-                 </span>
+                    { icon: <Sprout size={20} />, score: 0, label: '花草' },
+                    { icon: <Trees size={20} />, score: 50, label: '树木' },
+                    { icon: '🐇', score: 300, label: '小兔' },
+                    { icon: '🦆', score: 500, label: '小鸭' },
+                ].map((tier, i) => {
+                    const unlocked = growthScore >= tier.score;
+                    return (
+                        <div key={tier.label} className="flex flex-col items-center gap-1">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl transition-all ${unlocked ? 'bg-emerald-100 text-emerald-600 shadow-sm scale-100' : 'bg-slate-50 text-slate-300 grayscale scale-90'}`}>
+                                {typeof tier.icon === 'string' ? tier.icon : tier.icon}
+                            </div>
+                            <span className={`text-[10px] font-bold ${unlocked ? 'text-emerald-600' : 'text-slate-300'}`}>{tier.label}</span>
+                            {!unlocked && <span className="text-[9px] text-slate-300">{tier.score}</span>}
+                        </div>
+                    )
+                })}
             </div>
        </div>
-
-       <style>{`
-         @keyframes sway {
-           0%, 100% { transform: rotate(-3deg) scale(var(--tw-scale-x), var(--tw-scale-y)); }
-           50% { transform: rotate(3deg) scale(var(--tw-scale-x), var(--tw-scale-y)); }
-         }
-         @keyframes float {
-            0%, 100% { transform: translateY(0) scale(var(--tw-scale-x), var(--tw-scale-y)); }
-            50% { transform: translateY(-10px) scale(var(--tw-scale-x), var(--tw-scale-y)); }
-         }
-       `}</style>
     </div>
   );
 };
