@@ -3,22 +3,30 @@ import React, { useState } from 'react';
 import { X, Star } from 'lucide-react';
 import { Theme } from '../../styles/themes';
 import { COMMON_EMOJIS } from '../../constants';
+import { ToastType } from '../Toast';
 
 interface RewardModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (reward: { title: string, cost: number, icon: string }) => void;
     theme: Theme;
+    onShowToast: (msg: string, type: ToastType) => void;
 }
 
-export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, onClose, onSave, theme }) => {
+export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, onClose, onSave, theme, onShowToast }) => {
     const [newReward, setNewReward] = useState({ title: '', cost: 50, icon: '🎁' });
 
     if (!isOpen) return null;
 
     const handleSave = () => {
-        if (!newReward.title.trim()) return alert("请输入奖励名称");
-        onSave(newReward);
+        if (!newReward.title.trim()) {
+            onShowToast("请先给奖励起个名字吧！🎁", 'error');
+            return;
+        }
+        // Ensure cost is within bounds before saving
+        const finalCost = Math.min(500, Math.max(1, newReward.cost || 1));
+        onSave({ ...newReward, cost: finalCost });
+        onShowToast("奖励添加成功！", 'success');
         setNewReward({ title: '', cost: 50, icon: '🎁' });
     };
 
@@ -59,20 +67,38 @@ export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, onClose, onSav
                     </div>
 
                     <div>
-                        <label className="block text-xs text-slate-400 font-bold uppercase mb-2 ml-2">兑换花费</label>
+                        <label className="block text-xs text-slate-400 font-bold uppercase mb-2 ml-2">兑换花费 (1-500)</label>
                         <div className="bg-slate-50 p-3 rounded-xl flex items-center gap-4">
                             <input 
                                 type="range"
-                                min="10"
+                                min="1"
                                 max="500"
-                                step="10"
-                                value={newReward.cost}
+                                step="1"
+                                value={newReward.cost || 0}
                                 onChange={e => setNewReward({...newReward, cost: parseInt(e.target.value)})}
                                 className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer"
                             />
-                            <div className="flex items-center justify-center gap-1 w-16 h-10 rounded-lg bg-white shadow-sm border border-slate-100">
-                                <span className={`font-cute text-xl ${theme.accent}`}>{newReward.cost}</span>
-                                <Star size={14} className={`${theme.accent} fill-current`} />
+                            <div className={`flex items-center justify-center gap-1 w-20 h-10 rounded-lg bg-white shadow-sm border border-slate-100 focus-within:${theme.border} focus-within:ring-2 focus-within:ring-opacity-50 transition-all`}>
+                                <input 
+                                    type="number"
+                                    min="1"
+                                    max="500"
+                                    value={newReward.cost === 0 ? '' : newReward.cost}
+                                    onChange={e => {
+                                        const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                        if (val > 500) {
+                                            setNewReward({...newReward, cost: 500});
+                                        } else {
+                                            setNewReward({...newReward, cost: val});
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        if (newReward.cost < 1) setNewReward({...newReward, cost: 1});
+                                    }}
+                                    className={`font-cute text-xl ${theme.accent} w-10 text-center outline-none bg-transparent p-0 m-0 [&::-webkit-inner-spin-button]:appearance-none`} 
+                                    style={{ MozAppearance: 'textfield' }}
+                                />
+                                <Star size={14} className={`${theme.accent} fill-current flex-shrink-0`} />
                             </div>
                         </div>
                     </div>

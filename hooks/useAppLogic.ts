@@ -1,10 +1,11 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS } from '../constants';
 import { Task, Reward, TaskCategory, Transaction, AppState } from '../types';
 import { ThemeKey } from '../styles/themes';
 import { cloudService, DataScope } from '../services/cloud';
+import { ToastType } from '../components/Toast';
 
 export const useAppLogic = () => {
   const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings'>('daily');
@@ -52,6 +53,13 @@ export const useAppLogic = () => {
     type: 'success' 
   });
 
+  // --- Toast State ---
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: ToastType }>({
+    show: false,
+    message: '',
+    type: 'success',
+  });
+
   // --- Persistence Effects ---
   useEffect(() => localStorage.setItem('app_username', userName), [userName]);
   useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
@@ -62,6 +70,15 @@ export const useAppLogic = () => {
   useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
   useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
 
+  // --- Helper Logic ---
+  const showToast = useCallback((message: string, type: ToastType = 'success') => {
+    setToast({ show: true, message, type });
+  }, []);
+
+  const hideToast = useCallback(() => {
+    setToast(prev => ({ ...prev, show: false }));
+  }, []);
+
   // --- Cloud Logic ---
   const handleCloudLoad = async (targetFamilyId: string, silent = false, scope = 'all') => {
     if (!targetFamilyId) return;
@@ -71,7 +88,6 @@ export const useAppLogic = () => {
       const data = await cloudService.loadData(targetFamilyId, scope);
       if (data) {
         // Temporarily disable sync to prevent "echo" saving of loaded data
-        // This prevents the auto-save effects from triggering due to the state updates below
         setIsSyncReady(false);
 
         if (data.tasks) setTasks(data.tasks);
@@ -84,7 +100,6 @@ export const useAppLogic = () => {
         
         setSyncStatus('saved');
         
-        // Re-enable sync after effects have run (next tick)
         setTimeout(() => {
             setIsSyncReady(true);
         }, 50);
@@ -96,15 +111,16 @@ export const useAppLogic = () => {
                 origin: { y: 0.8 },
                 colors: ['#A7F3D0', '#6EE7B7', '#34D399']
             });
+            showToast('数据同步成功！', 'success');
         }
       } else {
-        if (!silent) alert('未找到该家庭ID的数据，可能是新ID。');
+        if (!silent) showToast('未找到该家庭ID的数据', 'error');
         setIsSyncReady(true);
         setSyncStatus('idle');
       }
     } catch (e) {
       setSyncStatus('error');
-      if (!silent) alert('同步失败，请检查网络或 ID。');
+      if (!silent) showToast('同步失败，请检查网络', 'error');
     }
   };
 
@@ -134,11 +150,9 @@ export const useAppLogic = () => {
     // Only fetch if we are in a stable state (ready and not blocked)
     if (familyId && isSyncReady && !isInteractionBlocked) {
         let scope = 'all';
-        // Map tabs to scopes to reduce data transfer
-        if (activeTab === 'daily') scope = 'daily'; // Tasks + Logs
-        if (activeTab === 'store') scope = 'store'; // Rewards
-        if (activeTab === 'calendar') scope = 'calendar'; // Transactions
-        // Settings view displays tasks and rewards, so 'settings' (or 'all') is appropriate
+        if (activeTab === 'daily') scope = 'daily';
+        if (activeTab === 'store') scope = 'store';
+        if (activeTab === 'calendar') scope = 'calendar';
         if (activeTab === 'settings') scope = 'settings'; 
         
         handleCloudLoad(familyId, true, scope);
@@ -170,7 +184,6 @@ export const useAppLogic = () => {
     return () => clearTimeout(t);
   }, [userName, themeKey, familyId]);
 
-  // --- Helper Logic ---
   const getDateKey = (d: Date) => {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -270,9 +283,10 @@ export const useAppLogic = () => {
             particleCount: 100, spread: 70, origin: { y: 0.6 },
             colors: ['#FF7EB3', '#7AFCB0', '#7FD8FE']
         });
+        showToast(`成功兑换：${reward.title}`, 'success');
       }
     } else {
-      alert(`星星不够哦！还需要 ${reward.cost - balance} 颗星星。加油！`);
+      showToast(`星星不够哦！还需要 ${reward.cost - balance} 颗星星。`, 'error');
     }
   };
 
@@ -281,13 +295,16 @@ export const useAppLogic = () => {
     setFamilyId(newId);
     setIsSyncReady(true);
     setTimeout(() => manualSaveAll(newId), 100);
+    showToast('家庭ID已创建，记得保存哦！', 'success');
   };
 
   const manualSaveAll = async (fid = familyId) => {
-    if (!fid) return;
+    if (!fid) {
+        showToast('请先创建家庭ID', 'error');
+        return;
+    }
     setSyncStatus('syncing');
     
-    // Use sequential saving to avoid D1 locking issues
     try {
         await cloudService.saveData(fid, 'settings', { userName, themeKey });
         await cloudService.saveData(fid, 'tasks', tasks);
@@ -296,9 +313,11 @@ export const useAppLogic = () => {
         
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);
+        showToast('所有数据已上传云端', 'success');
     } catch (error) {
         console.error("Manual save failed", error);
         setSyncStatus('error');
+        showToast('上传失败，请稍后再试', 'error');
     }
   };
 
@@ -308,13 +327,13 @@ export const useAppLogic = () => {
     setIsSyncReady(true);
     
     setTimeout(async () => {
-        // Sequential save is safer for initialization
         try {
             await cloudService.saveData(newId, 'settings', { userName: name, themeKey: 'lemon' });
             await cloudService.saveData(newId, 'tasks', INITIAL_TASKS);
             await cloudService.saveData(newId, 'rewards', INITIAL_REWARDS);
             await cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] });
             triggerStarConfetti();
+            showToast(`欢迎你，${name}！`, 'success');
         } catch (error) {
             console.error("Start adventure save failed", error);
             setSyncStatus('error');
@@ -333,7 +352,6 @@ export const useAppLogic = () => {
       window.location.reload();
   };
 
-  // Celebration Timer
   useEffect(() => {
     if (showCelebration.show) {
       setIsInteractionBlocked(true);
@@ -350,14 +368,16 @@ export const useAppLogic = () => {
       activeTab, currentDate, userName, themeKey, familyId,
       tasks, rewards, logs, balance, transactions,
       syncStatus, isInteractionBlocked, showCelebration,
-      dateKey: getDateKey(currentDate)
+      dateKey: getDateKey(currentDate),
+      toast 
     },
     actions: {
       setActiveTab, setCurrentDate, setUserName, setThemeKey, setFamilyId,
       setTasks, setRewards,
       toggleTask, redeemReward,
       createFamily, manualSaveAll, handleCloudLoad, handleStartAdventure, handleJoinFamily, resetData,
-      setShowCelebration
+      setShowCelebration,
+      showToast, hideToast
     }
   };
 };

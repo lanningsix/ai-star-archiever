@@ -5,6 +5,7 @@ import { CelebrationOverlay } from './components/CelebrationOverlay';
 import { NavBar } from './components/NavBar';
 import { useAppLogic } from './hooks/useAppLogic';
 import { THEMES } from './styles/themes';
+import { Toast } from './components/Toast';
 
 // Tabs
 import { DailyView } from './components/tabs/DailyView';
@@ -30,6 +31,13 @@ export default function App() {
     <div className={`min-h-screen ${activeTheme.bg || 'bg-[#FFF9F0]'} pb-28 transition-colors duration-500`}>
       {state.isInteractionBlocked && <div className="fixed inset-0 z-[40] bg-transparent cursor-wait" />}
       
+      <Toast 
+        message={state.toast.message} 
+        type={state.toast.type} 
+        isVisible={state.toast.show} 
+        onClose={actions.hideToast} 
+      />
+
       <CelebrationOverlay isVisible={state.showCelebration.show} points={state.showCelebration.points} type={state.showCelebration.type} />
 
       <Header balance={state.balance} userName={state.userName} themeKey={state.themeKey} />
@@ -87,7 +95,8 @@ export default function App() {
                     manualSave: actions.manualSaveAll,
                     manualLoad: actions.handleCloudLoad,
                     disconnect: () => actions.setFamilyId(''),
-                    reset: actions.resetData
+                    reset: actions.resetData,
+                    showToast: actions.showToast
                 }}
             />
         )}
@@ -118,6 +127,7 @@ export default function App() {
             actions.setTasks([...state.tasks, { id: Date.now().toString(), ...newTask }]);
             setIsTaskModalOpen(false);
         }}
+        onShowToast={actions.showToast}
       />
 
       <RewardModal 
@@ -128,6 +138,7 @@ export default function App() {
             setIsRewardModalOpen(false);
         }}
         theme={activeTheme}
+        onShowToast={actions.showToast}
       />
 
     </div>

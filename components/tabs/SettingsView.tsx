@@ -4,6 +4,7 @@ import { Settings, User, Edit3, Cloud, RefreshCw, Copy, Upload, Download, Palett
 import { Theme, ThemeKey, THEMES } from '../../styles/themes';
 import { CATEGORY_STYLES, CLOUD_API_URL } from '../../constants';
 import { Task, Reward } from '../../types';
+import { ToastType } from '../Toast';
 
 interface SettingsViewProps {
   userName: string;
@@ -26,6 +27,7 @@ interface SettingsViewProps {
       manualLoad: (id: string) => void;
       disconnect: () => void;
       reset: () => void;
+      showToast: (msg: string, type: ToastType) => void;
   };
   theme: Theme;
 }
@@ -37,7 +39,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     const copyFamilyId = () => {
         navigator.clipboard.writeText(familyId);
-        alert('家庭ID已复制！发送给其他家庭成员即可同步。');
+        actions.showToast('家庭ID已复制！', 'success');
     };
 
     return (

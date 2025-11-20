@@ -3,21 +3,27 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { TaskCategory } from '../../types';
 import { CATEGORY_STYLES } from '../../constants';
+import { ToastType } from '../Toast';
 
 interface TaskModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (task: { title: string, stars: number, category: TaskCategory }) => void;
+    onShowToast: (msg: string, type: ToastType) => void;
 }
 
-export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave }) => {
+export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, onShowToast }) => {
     const [newTask, setNewTask] = useState({ title: '', stars: 2, category: TaskCategory.LIFE });
 
     if (!isOpen) return null;
 
     const handleSave = () => {
-        if (!newTask.title.trim()) return alert("请输入任务名称");
+        if (!newTask.title.trim()) {
+            onShowToast("请先给任务起个名字吧！✨", 'error');
+            return;
+        }
         onSave(newTask);
+        onShowToast("任务添加成功！", 'success');
         setNewTask({ title: '', stars: 2, category: TaskCategory.LIFE });
     };
 
