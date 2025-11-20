@@ -1,4 +1,5 @@
 
+
 import { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS } from '../constants';
@@ -63,12 +64,12 @@ export const useAppLogic = () => {
   useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
 
   // --- Cloud Logic ---
-  const handleCloudLoad = async (targetFamilyId: string, silent = false) => {
+  const handleCloudLoad = async (targetFamilyId: string, silent = false, scope = 'all') => {
     if (!targetFamilyId) return;
     if (!silent) setSyncStatus('syncing');
 
     try {
-      const data = await cloudService.loadData(targetFamilyId);
+      const data = await cloudService.loadData(targetFamilyId, scope);
       if (data) {
         if (data.tasks) setTasks(data.tasks);
         if (data.rewards) setRewards(data.rewards);
@@ -114,17 +115,25 @@ export const useAppLogic = () => {
     }
   };
 
-  // Initialization load
+  // Initialization load (fetch everything)
   useEffect(() => {
     if (familyId) {
-      handleCloudLoad(familyId, true);
+      handleCloudLoad(familyId, true, 'all');
     }
   }, []);
 
-  // Tab refresh
+  // Tab refresh (fetch only what's needed)
   useEffect(() => {
     if (familyId && isSyncReady && !isInteractionBlocked) {
-        handleCloudLoad(familyId, true);
+        let scope = 'all';
+        // Map tabs to scopes to reduce data transfer
+        if (activeTab === 'daily') scope = 'daily'; // Tasks + Logs
+        if (activeTab === 'store') scope = 'store'; // Rewards
+        if (activeTab === 'calendar') scope = 'calendar'; // Transactions
+        // Settings view displays tasks and rewards, so 'settings' (or 'all') is appropriate
+        if (activeTab === 'settings') scope = 'settings'; 
+        
+        handleCloudLoad(familyId, true, scope);
     }
   }, [activeTab]);
 
@@ -269,14 +278,20 @@ export const useAppLogic = () => {
   const manualSaveAll = async (fid = familyId) => {
     if (!fid) return;
     setSyncStatus('syncing');
-    await Promise.all([
-        cloudService.saveData(fid, 'tasks', tasks),
-        cloudService.saveData(fid, 'rewards', rewards),
-        cloudService.saveData(fid, 'settings', { userName, themeKey }),
-        cloudService.saveData(fid, 'activity', { logs, balance, transactions })
-    ]);
-    setSyncStatus('saved');
-    setTimeout(() => setSyncStatus('idle'), 2000);
+    
+    // Use sequential saving to avoid D1 locking issues
+    try {
+        await cloudService.saveData(fid, 'settings', { userName, themeKey });
+        await cloudService.saveData(fid, 'tasks', tasks);
+        await cloudService.saveData(fid, 'rewards', rewards);
+        await cloudService.saveData(fid, 'activity', { logs, balance, transactions });
+        
+        setSyncStatus('saved');
+        setTimeout(() => setSyncStatus('idle'), 2000);
+    } catch (error) {
+        console.error("Manual save failed", error);
+        setSyncStatus('error');
+    }
   };
 
   const handleStartAdventure = async (name: string) => {
@@ -285,20 +300,24 @@ export const useAppLogic = () => {
     setIsSyncReady(true);
     
     setTimeout(async () => {
-        await Promise.all([
-            cloudService.saveData(newId, 'tasks', INITIAL_TASKS),
-            cloudService.saveData(newId, 'rewards', INITIAL_REWARDS),
-            cloudService.saveData(newId, 'settings', { userName: name, themeKey: 'lemon' }),
-            cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] })
-        ]);
-        triggerStarConfetti();
+        // Sequential save is safer for initialization
+        try {
+            await cloudService.saveData(newId, 'settings', { userName: name, themeKey: 'lemon' });
+            await cloudService.saveData(newId, 'tasks', INITIAL_TASKS);
+            await cloudService.saveData(newId, 'rewards', INITIAL_REWARDS);
+            await cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] });
+            triggerStarConfetti();
+        } catch (error) {
+            console.error("Start adventure save failed", error);
+            setSyncStatus('error');
+        }
     }, 100);
   };
 
   const handleJoinFamily = async (id: string) => {
       setFamilyId(id);
       setIsSyncReady(false);
-      await handleCloudLoad(id, false);
+      await handleCloudLoad(id, false, 'all');
   };
 
   const resetData = () => {
