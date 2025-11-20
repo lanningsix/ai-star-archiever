@@ -1,4 +1,5 @@
 
+
 export default {
   async fetch(request, env, ctx) {
     // Handle CORS
@@ -21,7 +22,8 @@ export default {
 
     const url = new URL(request.url);
 
-    if (url.pathname.endsWith("/api/sync")) {
+    // Allow root path "/" OR "/api/sync" to be flexible
+    if (url.pathname === "/" || url.pathname.endsWith("/api/sync")) {
       const familyId = url.searchParams.get("familyId");
 
       if (!familyId) {

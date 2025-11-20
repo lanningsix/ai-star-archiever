@@ -2,8 +2,8 @@
 import { Task, TaskCategory, Reward } from './types';
 
 // [CLOUDFLARE CONFIG]
-// 部署 server 目录下的代码到 Cloudflare Workers 后，将 URL 填入此处。
-export const CLOUD_API_URL = 'https://star-achiever-api.example.workers.dev/api/sync'; 
+// Cloudflare Worker 后端地址
+export const CLOUD_API_URL = 'https://dundun.uno'; 
 
 export const INITIAL_TASKS: Task[] = [
   // Life Habits
