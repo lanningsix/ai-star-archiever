@@ -59,13 +59,3 @@ export const CATEGORY_STYLES = {
     [TaskCategory.BONUS]: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', iconBg: 'bg-amber-400', accent: 'text-amber-500' },
     [TaskCategory.PENALTY]: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', iconBg: 'bg-rose-400', accent: 'text-rose-500' },
 };
-
-// --- Garden System Thresholds ---
-// Based on total lifetime positive stars
-export const GARDEN_LEVELS = {
-    SPROUT: 0,
-    FLOWER: 50,
-    BUSH: 150,
-    TREE: 300,
-    FOREST: 600
-};
