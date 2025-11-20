@@ -1,5 +1,4 @@
 
-
 import { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS } from '../constants';
@@ -71,6 +70,10 @@ export const useAppLogic = () => {
     try {
       const data = await cloudService.loadData(targetFamilyId, scope);
       if (data) {
+        // Temporarily disable sync to prevent "echo" saving of loaded data
+        // This prevents the auto-save effects from triggering due to the state updates below
+        setIsSyncReady(false);
+
         if (data.tasks) setTasks(data.tasks);
         if (data.rewards) setRewards(data.rewards);
         if (data.logs) setLogs(data.logs);
@@ -80,7 +83,11 @@ export const useAppLogic = () => {
         if (data.userName) setUserName(data.userName);
         
         setSyncStatus('saved');
-        setIsSyncReady(true);
+        
+        // Re-enable sync after effects have run (next tick)
+        setTimeout(() => {
+            setIsSyncReady(true);
+        }, 50);
 
         if (!silent) {
              confetti({
@@ -124,6 +131,7 @@ export const useAppLogic = () => {
 
   // Tab refresh (fetch only what's needed)
   useEffect(() => {
+    // Only fetch if we are in a stable state (ready and not blocked)
     if (familyId && isSyncReady && !isInteractionBlocked) {
         let scope = 'all';
         // Map tabs to scopes to reduce data transfer
