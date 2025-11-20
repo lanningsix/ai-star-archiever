@@ -12,6 +12,19 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
+    // Check for KV Binding
+    if (!env.STAR_DATA) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Server Error: KV Binding 'STAR_DATA' not found. Please check wrangler.toml." 
+        }), 
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const url = new URL(request.url);
 
     // API Route: /api/sync
@@ -41,6 +54,7 @@ export default {
           const body = await request.json();
           
           // Save to Cloudflare KV (Key: familyId, Value: JSON string)
+          // Expiration is optional, data persists indefinitely by default
           await env.STAR_DATA.put(familyId, JSON.stringify(body));
 
           return new Response(JSON.stringify({ success: true }), {
