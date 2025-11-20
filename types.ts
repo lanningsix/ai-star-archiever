@@ -1,3 +1,4 @@
+import React from 'react';
 
 export enum TaskCategory {
   LIFE = '生活习惯',
@@ -34,12 +35,31 @@ export interface Transaction {
   type: 'EARN' | 'SPEND' | 'PENALTY';
 }
 
-// Added Pet interface to satisfy cloud.ts import
-export interface Pet {
+// Avatar Types
+export type AvatarPartType = 'head' | 'face' | 'body' | 'back' | 'hand' | 'skin';
+
+export interface AvatarItem {
+  id: string;
+  type: AvatarPartType;
   name: string;
-  level: number;
-  experience: number;
-  lastInteracted: number;
+  cost: number;
+  icon: string; // Emoji for shop
+  svgContent?: (props: any) => React.ReactElement; // Render function
+  color?: string;
+}
+
+export interface AvatarConfig {
+  skinColor: string;
+  head?: string; // itemId
+  face?: string;
+  body?: string;
+  back?: string;
+  hand?: string;
+}
+
+export interface AvatarState {
+  config: AvatarConfig;
+  ownedItems: string[];
 }
 
 export interface AppState {
@@ -48,4 +68,5 @@ export interface AppState {
   logs: Record<string, string[]>; // date -> array of task IDs
   balance: number;
   transactions: Transaction[];
+  avatar: AvatarState;
 }

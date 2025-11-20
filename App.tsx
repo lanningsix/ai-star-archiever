@@ -12,6 +12,7 @@ import { DailyView } from './components/tabs/DailyView';
 import { StoreView } from './components/tabs/StoreView';
 import { CalendarView } from './components/tabs/CalendarView';
 import { SettingsView } from './components/tabs/SettingsView';
+import { AvatarView } from './components/tabs/AvatarView';
 
 // Modals
 import { OnboardingModal } from './components/modals/OnboardingModal';
@@ -61,6 +62,16 @@ export default function App() {
                 rewards={state.rewards}
                 balance={state.balance}
                 onRedeem={actions.redeemReward}
+                theme={activeTheme}
+            />
+        )}
+
+        {state.activeTab === 'avatar' && (
+            <AvatarView 
+                avatar={state.avatar}
+                balance={state.balance}
+                onBuy={actions.buyAvatarItem}
+                onEquip={actions.equipAvatarItem}
                 theme={activeTheme}
             />
         )}

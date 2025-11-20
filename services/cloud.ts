@@ -1,6 +1,6 @@
 
 import { CLOUD_API_URL } from '../constants';
-import { AppState, Task, Reward, Transaction, Pet } from '../types';
+import { AppState, Task, Reward, Transaction, AvatarState } from '../types';
 
 export interface CloudData {
   tasks?: Task[];
@@ -8,13 +8,13 @@ export interface CloudData {
   logs?: Record<string, string[]>;
   balance: number;
   transactions?: Transaction[];
-  pet?: Pet;
+  avatar?: AvatarState;
   themeKey: string;
   userName: string;
   lastUpdated?: number;
 }
 
-export type DataScope = 'tasks' | 'rewards' | 'settings' | 'activity' | 'pet';
+export type DataScope = 'tasks' | 'rewards' | 'settings' | 'activity' | 'avatar';
 
 export const cloudService = {
   // Generate a random Family ID

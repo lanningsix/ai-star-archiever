@@ -34,9 +34,9 @@ export default {
       try {
         // === GET: 读取并组装数据 ===
         if (request.method === "GET") {
-          const scope = url.searchParams.get("scope") || "all"; // 'all', 'daily', 'store', 'calendar', 'pet'
+          const scope = url.searchParams.get("scope") || "all"; // 'all', 'daily', 'store', 'calendar', 'avatar'
 
-          // 1. 获取基础设置 (Always fetch settings for balance/theme/pet)
+          // 1. 获取基础设置 (Always fetch settings for balance/theme/avatar)
           const settings = await env.DB.prepare("SELECT * FROM settings WHERE family_id = ?").bind(familyId).first();
           
           // 如果没有找到该家庭，返回空结构
@@ -80,7 +80,7 @@ export default {
             userName: settings.user_name || "",
             themeKey: settings.theme_key || "lemon",
             balance: settings.balance || 0,
-            pet: settings.pet_data ? JSON.parse(settings.pet_data) : undefined,
+            avatar: settings.avatar_data ? JSON.parse(settings.avatar_data) : undefined,
             tasks: tasksResult ? (tasksResult.results || []) : undefined,
             rewards: rewardsResult ? (rewardsResult.results || []) : undefined,
             logs: logsMap,
@@ -136,10 +136,16 @@ export default {
                  statements.push(updateStmt.bind(data.userName, data.themeKey, timestamp, familyId));
              }
           }
-          else if (scope === 'pet') {
-             // Update Pet Data (stored as JSON string in settings table)
-             const petJson = data ? JSON.stringify(data) : null;
-             statements.push(env.DB.prepare("UPDATE settings SET pet_data = ?, updated_at = ? WHERE family_id = ?").bind(petJson, timestamp, familyId));
+          else if (scope === 'avatar') {
+             // Update Avatar Data (balance is usually updated in activity, but can be here if needed, though separation is better)
+             // We might receive balance here if buying items updates balance immediately
+             const avatarJson = data.avatar ? JSON.stringify(data.avatar) : null;
+             
+             if (data.balance !== undefined) {
+                statements.push(env.DB.prepare("UPDATE settings SET avatar_data = ?, balance = ?, updated_at = ? WHERE family_id = ?").bind(avatarJson, data.balance, timestamp, familyId));
+             } else {
+                statements.push(env.DB.prepare("UPDATE settings SET avatar_data = ?, updated_at = ? WHERE family_id = ?").bind(avatarJson, timestamp, familyId));
+             }
           }
           else if (scope === 'activity') {
              if (data.balance !== undefined) {

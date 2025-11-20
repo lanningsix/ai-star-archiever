@@ -1,5 +1,5 @@
 
-import { Task, TaskCategory, Reward } from './types';
+import { Task, TaskCategory, Reward, AvatarItem } from './types';
 
 // [CLOUDFLARE CONFIG]
 // Cloudflare Worker 后端地址
@@ -59,3 +59,37 @@ export const CATEGORY_STYLES = {
     [TaskCategory.BONUS]: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', iconBg: 'bg-amber-400', accent: 'text-amber-500' },
     [TaskCategory.PENALTY]: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', iconBg: 'bg-rose-400', accent: 'text-rose-500' },
 };
+
+// --- Avatar Items ---
+
+export const AVATAR_ITEMS: AvatarItem[] = [
+    // Heads
+    { id: 'h_crown_gold', type: 'head', name: '黄金皇冠', cost: 150, icon: '👑', color: '#FFD700' },
+    { id: 'h_cap_blue', type: 'head', name: '蓝色棒球帽', cost: 50, icon: '🧢', color: '#3B82F6' },
+    { id: 'h_ears_bunny', type: 'head', name: '兔耳朵', cost: 80, icon: '🐰', color: '#F472B6' },
+    { id: 'h_flower', type: 'head', name: '小红花', cost: 30, icon: '🌺', color: '#EF4444' },
+    { id: 'h_wizard', type: 'head', name: '魔法帽', cost: 120, icon: '🧙', color: '#8B5CF6' },
+
+    // Bodies (Shirts/Dresses)
+    { id: 'b_shirt_red', type: 'body', name: '红色T恤', cost: 0, icon: '👕', color: '#EF4444' }, // Default
+    { id: 'b_dress_pink', type: 'body', name: '粉色裙子', cost: 60, icon: '👗', color: '#F472B6' },
+    { id: 'b_suit_super', type: 'body', name: '超人服', cost: 200, icon: '🦸', color: '#3B82F6' },
+    { id: 'b_shirt_green', type: 'body', name: '绿色卫衣', cost: 40, icon: '👚', color: '#10B981' },
+    { id: 'b_robe_wizard', type: 'body', name: '魔法长袍', cost: 150, icon: '👘', color: '#6D28D9' },
+
+    // Back (Wings)
+    { id: 'bk_wings_angel', type: 'back', name: '天使翅膀', cost: 300, icon: '👼', color: '#FFFFFF' },
+    { id: 'bk_cape_red', type: 'back', name: '红色披风', cost: 100, icon: '🧣', color: '#EF4444' },
+    { id: 'bk_wings_dragon', type: 'back', name: '龙翅膀', cost: 250, icon: '🦖', color: '#10B981' },
+    { id: 'bk_backpack', type: 'back', name: '小书包', cost: 60, icon: '🎒', color: '#F59E0B' },
+
+    // Hands
+    { id: 'hd_wand_star', type: 'hand', name: '星星魔杖', cost: 180, icon: '🪄', color: '#FCD34D' },
+    { id: 'hd_sword', type: 'hand', name: '勇者之剑', cost: 150, icon: '🗡️', color: '#9CA3AF' },
+    { id: 'hd_balloon', type: 'hand', name: '气球', cost: 40, icon: '🎈', color: '#EF4444' },
+    { id: 'hd_bear', type: 'hand', name: '小熊', cost: 90, icon: '🧸', color: '#D97706' },
+
+    // Faces (Glasses etc)
+    { id: 'f_glasses', type: 'face', name: '酷酷墨镜', cost: 70, icon: '🕶️', color: '#1F2937' },
+    { id: 'f_mask', type: 'face', name: '神秘面具', cost: 80, icon: '🎭', color: '#4B5563' },
+];

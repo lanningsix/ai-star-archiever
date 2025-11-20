@@ -1,14 +1,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
-import { INITIAL_TASKS, INITIAL_REWARDS } from '../constants';
-import { Task, Reward, TaskCategory, Transaction, AppState } from '../types';
+import { INITIAL_TASKS, INITIAL_REWARDS, AVATAR_ITEMS } from '../constants';
+import { Task, Reward, TaskCategory, Transaction, AppState, AvatarState, AvatarItem } from '../types';
 import { ThemeKey } from '../styles/themes';
 import { cloudService, DataScope } from '../services/cloud';
 import { ToastType } from '../components/Toast';
 
 export const useAppLogic = () => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings' | 'avatar'>('daily');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // --- State ---
@@ -41,6 +41,14 @@ export const useAppLogic = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [avatar, setAvatar] = useState<AvatarState>(() => {
+      const saved = localStorage.getItem('app_avatar');
+      return saved ? JSON.parse(saved) : {
+          config: { skinColor: '#FFDFC4', body: 'b_shirt_red' },
+          ownedItems: ['b_shirt_red']
+      };
+  });
+
   // --- Cloud Sync State ---
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
   const [isSyncReady, setIsSyncReady] = useState(false);
@@ -68,6 +76,7 @@ export const useAppLogic = () => {
   useEffect(() => localStorage.setItem('app_logs', JSON.stringify(logs)), [logs]);
   useEffect(() => localStorage.setItem('app_balance', balance.toString()), [balance]);
   useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
+  useEffect(() => localStorage.setItem('app_avatar', JSON.stringify(avatar)), [avatar]);
   useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
 
   // --- Helper Logic ---
@@ -110,6 +119,7 @@ export const useAppLogic = () => {
         if (data.transactions) setTransactions(data.transactions);
         if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
         if (data.userName) setUserName(data.userName);
+        if (data.avatar) setAvatar(data.avatar);
         
         setSyncStatus('saved');
         setTimeout(() => setIsSyncReady(true), 50);
@@ -163,6 +173,7 @@ export const useAppLogic = () => {
         if (activeTab === 'store') scope = 'store';
         if (activeTab === 'calendar') scope = 'calendar';
         if (activeTab === 'settings') scope = 'settings';
+        if (activeTab === 'avatar') scope = 'avatar';
         handleCloudLoad(familyId, true, scope);
     }
   }, [activeTab]);
@@ -191,6 +202,13 @@ export const useAppLogic = () => {
     const t = setTimeout(() => syncData('settings', { userName, themeKey }, true), 1500);
     return () => clearTimeout(t);
   }, [userName, themeKey, familyId]);
+
+  useEffect(() => {
+    if (!familyId || !isSyncReady) return;
+    // Avatar changes often include balance changes, syncing both
+    const t = setTimeout(() => syncData('avatar', { avatar, balance }, true), 1000);
+    return () => clearTimeout(t);
+  }, [avatar, balance, familyId]);
 
   const getDateKey = (d: Date) => {
     const year = d.getFullYear();
@@ -250,7 +268,7 @@ export const useAppLogic = () => {
       date: txDate.toISOString(),
       description,
       amount,
-      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('喂食')) ? 'SPEND' : 'PENALTY'
+      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买')) ? 'SPEND' : 'PENALTY'
     };
     setTransactions(prev => [newTx, ...prev]);
   };
@@ -294,11 +312,57 @@ export const useAppLogic = () => {
           showToast(`成功兑换：${reward.title}`, 'success');
       } catch (error) {
           console.error("Redeem error", error);
-          // Still fallback to success message if state update worked but confetti failed
           showToast(`兑换成功：${reward.title}`, 'success');
       }
     } else {
       showToast(`星星不够哦！还需要 ${reward.cost - balance} 颗星星。`, 'error');
+    }
+  };
+
+  // Avatar Actions
+  const buyAvatarItem = (item: AvatarItem) => {
+      if (balance < item.cost) {
+          showToast('星星不够哦！再做点任务吧。', 'error');
+          return;
+      }
+      if (avatar.ownedItems.includes(item.id)) {
+          // Already owned, equip it
+          equipAvatarItem(item);
+          return;
+      }
+
+      updateBalance(-item.cost, `购买装扮: ${item.name}`);
+      
+      setAvatar(prev => ({
+          ...prev,
+          ownedItems: [...prev.ownedItems, item.id],
+          config: {
+              ...prev.config,
+              [item.type]: item.id
+          }
+      }));
+      
+      safeConfetti({
+          particleCount: 80, spread: 60, origin: { y: 0.5 },
+          colors: ['#F472B6', '#3B82F6', '#FCD34D']
+      });
+      showToast('购买成功！太漂亮了！', 'success');
+  };
+
+  const equipAvatarItem = (item: AvatarItem) => {
+    if (avatar.config[item.type] === item.id) {
+        // Unequip if already equipped (except body/skin maybe?)
+        if (item.type !== 'body' && item.type !== 'skin') {
+             setAvatar(prev => ({
+                ...prev,
+                config: { ...prev.config, [item.type]: undefined }
+            }));
+        }
+    } else {
+        setAvatar(prev => ({
+            ...prev,
+            config: { ...prev.config, [item.type]: item.id }
+        }));
     }
   };
 
@@ -322,6 +386,7 @@ export const useAppLogic = () => {
         await cloudService.saveData(fid, 'tasks', tasks);
         await cloudService.saveData(fid, 'rewards', rewards);
         await cloudService.saveData(fid, 'activity', { logs, balance, transactions });
+        await cloudService.saveData(fid, 'avatar', { avatar });
         
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);
@@ -378,7 +443,7 @@ export const useAppLogic = () => {
   return {
     state: {
       activeTab, currentDate, userName, themeKey, familyId,
-      tasks, rewards, logs, balance, transactions,
+      tasks, rewards, logs, balance, transactions, avatar,
       syncStatus, isInteractionBlocked, showCelebration,
       dateKey: getDateKey(currentDate),
       toast 
@@ -387,6 +452,7 @@ export const useAppLogic = () => {
       setActiveTab, setCurrentDate, setUserName, setThemeKey, setFamilyId,
       setTasks, setRewards,
       toggleTask, redeemReward,
+      buyAvatarItem, equipAvatarItem,
       createFamily, manualSaveAll, handleCloudLoad, handleStartAdventure, handleJoinFamily, resetData,
       setShowCelebration,
       showToast, hideToast,
