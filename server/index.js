@@ -1,5 +1,4 @@
 
-
 export default {
   async fetch(request, env, ctx) {
     // Handle CORS
@@ -35,9 +34,9 @@ export default {
       try {
         // === GET: 读取并组装数据 ===
         if (request.method === "GET") {
-          const scope = url.searchParams.get("scope") || "all"; // 'all', 'daily', 'store', 'calendar'
+          const scope = url.searchParams.get("scope") || "all"; // 'all', 'daily', 'store', 'calendar', 'pet'
 
-          // 1. 获取基础设置 (Always fetch settings for balance/theme)
+          // 1. 获取基础设置 (Always fetch settings for balance/theme/pet)
           const settings = await env.DB.prepare("SELECT * FROM settings WHERE family_id = ?").bind(familyId).first();
           
           // 如果没有找到该家庭，返回空结构
@@ -48,13 +47,6 @@ export default {
           }
 
           let tasksResult, rewardsResult, logsResult, txResult;
-
-          // 2. 按需并行获取其他表数据
-          // scope 'daily' needs: tasks, logs
-          // scope 'store' needs: rewards
-          // scope 'calendar' needs: transactions
-          // scope 'all' needs: everything (used for init or settings tab)
-
           const promises = [];
 
           if (scope === 'all' || scope === 'daily' || scope === 'settings') {
@@ -72,7 +64,7 @@ export default {
 
           await Promise.all(promises);
 
-          // 3. 转换 Logs 格式 (DB Rows -> Record<date, ids[]>)
+          // 3. 转换 Logs 格式
           let logsMap = undefined;
           if (logsResult && logsResult.results) {
             logsMap = {};
@@ -83,12 +75,12 @@ export default {
           }
 
           // 4. 组装最终 JSON
-          // 注意：未请求的数据字段应为 undefined，这样前端 JSON.stringify 后 key 会消失或前端判断时为 falsy，不会覆盖现有 state
           const data = {
             familyId: settings.family_id,
             userName: settings.user_name || "",
             themeKey: settings.theme_key || "lemon",
             balance: settings.balance || 0,
+            pet: settings.pet_data ? JSON.parse(settings.pet_data) : undefined,
             tasks: tasksResult ? (tasksResult.results || []) : undefined,
             rewards: rewardsResult ? (rewardsResult.results || []) : undefined,
             logs: logsMap,
@@ -110,7 +102,7 @@ export default {
           const timestamp = Date.now();
           const statements = [];
 
-          // 确保主表存在 (Upsert family entry)
+          // 确保主表存在
           statements.push(
             env.DB.prepare("INSERT OR IGNORE INTO settings (family_id, created_at, updated_at) VALUES (?, ?, ?)")
             .bind(familyId, timestamp, timestamp)
@@ -144,15 +136,18 @@ export default {
                  statements.push(updateStmt.bind(data.userName, data.themeKey, timestamp, familyId));
              }
           }
+          else if (scope === 'pet') {
+             // Update Pet Data (stored as JSON string in settings table)
+             const petJson = data ? JSON.stringify(data) : null;
+             statements.push(env.DB.prepare("UPDATE settings SET pet_data = ?, updated_at = ? WHERE family_id = ?").bind(petJson, timestamp, familyId));
+          }
           else if (scope === 'activity') {
              if (data.balance !== undefined) {
                 statements.push(env.DB.prepare("UPDATE settings SET balance = ?, updated_at = ? WHERE family_id = ?").bind(data.balance, timestamp, familyId));
              }
-
              if (data.logs) {
                 statements.push(env.DB.prepare("DELETE FROM task_logs WHERE family_id = ?").bind(familyId));
                 const logInsert = env.DB.prepare("INSERT INTO task_logs (family_id, date_key, task_id, created_at) VALUES (?, ?, ?, ?)");
-                
                 for (const [dateKey, taskIds] of Object.entries(data.logs)) {
                     if (Array.isArray(taskIds)) {
                         taskIds.forEach(tid => {
@@ -161,7 +156,6 @@ export default {
                     }
                 }
              }
-
              if (data.transactions) {
                 statements.push(env.DB.prepare("DELETE FROM transactions WHERE family_id = ?").bind(familyId));
                 const txInsert = env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)");

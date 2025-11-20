@@ -1,14 +1,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
-import { INITIAL_TASKS, INITIAL_REWARDS } from '../constants';
-import { Task, Reward, TaskCategory, Transaction, AppState } from '../types';
+import { INITIAL_TASKS, INITIAL_REWARDS, getExpForNextLevel, PET_CONFIG } from '../constants';
+import { Task, Reward, TaskCategory, Transaction, AppState, Pet, PetType } from '../types';
 import { ThemeKey } from '../styles/themes';
 import { cloudService, DataScope } from '../services/cloud';
 import { ToastType } from '../components/Toast';
 
 export const useAppLogic = () => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'pet' | 'calendar' | 'settings'>('daily');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // --- State ---
@@ -41,6 +41,11 @@ export const useAppLogic = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [pet, setPet] = useState<Pet | null>(() => {
+      const saved = localStorage.getItem('app_pet');
+      return saved ? JSON.parse(saved) : null;
+  });
+
   // --- Cloud Sync State ---
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
   const [isSyncReady, setIsSyncReady] = useState(false);
@@ -69,6 +74,7 @@ export const useAppLogic = () => {
   useEffect(() => localStorage.setItem('app_balance', balance.toString()), [balance]);
   useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
   useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
+  useEffect(() => localStorage.setItem('app_pet', JSON.stringify(pet)), [pet]);
 
   // --- Helper Logic ---
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
@@ -97,6 +103,7 @@ export const useAppLogic = () => {
         if (data.transactions) setTransactions(data.transactions);
         if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
         if (data.userName) setUserName(data.userName);
+        if (data.pet !== undefined) setPet(data.pet);
         
         setSyncStatus('saved');
         
@@ -153,7 +160,8 @@ export const useAppLogic = () => {
         if (activeTab === 'daily') scope = 'daily';
         if (activeTab === 'store') scope = 'store';
         if (activeTab === 'calendar') scope = 'calendar';
-        if (activeTab === 'settings') scope = 'settings'; 
+        if (activeTab === 'settings') scope = 'settings';
+        if (activeTab === 'pet') scope = 'pet';
         
         handleCloudLoad(familyId, true, scope);
     }
@@ -177,6 +185,12 @@ export const useAppLogic = () => {
     const t = setTimeout(() => syncData('activity', { logs, balance, transactions }, true), 500);
     return () => clearTimeout(t);
   }, [logs, balance, transactions, familyId]);
+
+  useEffect(() => {
+    if (!familyId || !isSyncReady) return;
+    const t = setTimeout(() => syncData('pet', pet, true), 1000);
+    return () => clearTimeout(t);
+  }, [pet, familyId]);
 
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
@@ -242,7 +256,7 @@ export const useAppLogic = () => {
       date: txDate.toISOString(),
       description,
       amount,
-      type: amount > 0 ? 'EARN' : amount < 0 && description.includes('兑换') ? 'SPEND' : 'PENALTY'
+      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('喂食')) ? 'SPEND' : 'PENALTY'
     };
     setTransactions(prev => [newTx, ...prev]);
   };
@@ -310,6 +324,7 @@ export const useAppLogic = () => {
         await cloudService.saveData(fid, 'tasks', tasks);
         await cloudService.saveData(fid, 'rewards', rewards);
         await cloudService.saveData(fid, 'activity', { logs, balance, transactions });
+        await cloudService.saveData(fid, 'pet', pet);
         
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);
@@ -332,6 +347,7 @@ export const useAppLogic = () => {
             await cloudService.saveData(newId, 'tasks', INITIAL_TASKS);
             await cloudService.saveData(newId, 'rewards', INITIAL_REWARDS);
             await cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] });
+            await cloudService.saveData(newId, 'pet', null);
             triggerStarConfetti();
             showToast(`欢迎你，${name}！`, 'success');
         } catch (error) {
@@ -363,10 +379,62 @@ export const useAppLogic = () => {
     }
   }, [showCelebration.show]);
 
+  // --- Pet Logic ---
+  const adoptPet = (name: string, type: PetType) => {
+      const newPet: Pet = {
+          name,
+          type,
+          level: 1,
+          exp: 0,
+          lastFedTime: Date.now(),
+          bornTime: Date.now()
+      };
+      setPet(newPet);
+      showToast(`成功领养了 ${name}!`, 'success');
+      triggerStarConfetti();
+  };
+
+  const feedPet = (foodCost: number, foodExp: number) => {
+      if (!pet) return;
+      if (balance < foodCost) {
+          showToast(`星星不够哦，需要 ${foodCost - balance} 颗星星`, 'error');
+          return;
+      }
+
+      updateBalance(-foodCost, `喂食: ${pet.name}`);
+      
+      let newExp = pet.exp + foodExp;
+      let newLevel = pet.level;
+      let expNeeded = getExpForNextLevel(newLevel);
+      let leveledUp = false;
+
+      while (newExp >= expNeeded && newLevel < PET_CONFIG.MAX_LEVEL) {
+          newExp -= expNeeded;
+          newLevel++;
+          leveledUp = true;
+          expNeeded = getExpForNextLevel(newLevel);
+      }
+
+      setPet({
+          ...pet,
+          exp: newExp,
+          level: newLevel,
+          lastFedTime: Date.now()
+      });
+
+      if (leveledUp) {
+           triggerStarConfetti();
+           showToast(`${pet.name} 升级啦！Lv.${newLevel}`, 'success');
+      } else {
+           showToast(`${pet.name} 吃得很开心！`, 'success');
+      }
+  };
+
   return {
     state: {
       activeTab, currentDate, userName, themeKey, familyId,
       tasks, rewards, logs, balance, transactions,
+      pet,
       syncStatus, isInteractionBlocked, showCelebration,
       dateKey: getDateKey(currentDate),
       toast 
@@ -377,7 +445,8 @@ export const useAppLogic = () => {
       toggleTask, redeemReward,
       createFamily, manualSaveAll, handleCloudLoad, handleStartAdventure, handleJoinFamily, resetData,
       setShowCelebration,
-      showToast, hideToast
+      showToast, hideToast,
+      adoptPet, feedPet
     }
   };
 };

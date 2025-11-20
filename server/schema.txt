@@ -1,3 +1,4 @@
+
 -- 1. Settings Table (存储家庭设置)
 DROP TABLE IF EXISTS settings;
 CREATE TABLE settings (
@@ -5,6 +6,7 @@ CREATE TABLE settings (
     user_name TEXT,
     theme_key TEXT,
     balance INTEGER DEFAULT 0,
+    pet_data TEXT,
     created_at INTEGER,
     updated_at INTEGER
 );

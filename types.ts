@@ -1,3 +1,4 @@
+
 export enum TaskCategory {
   LIFE = '生活习惯',
   BEHAVIOR = '行为习惯',
@@ -33,10 +34,23 @@ export interface Transaction {
   type: 'EARN' | 'SPEND' | 'PENALTY';
 }
 
+// --- Pet System ---
+export type PetType = 'dino' | 'unicorn' | 'cat' | 'dragon';
+
+export interface Pet {
+  name: string;
+  type: PetType;
+  level: number;
+  exp: number;
+  lastFedTime: number; // Timestamp
+  bornTime: number;
+}
+
 export interface AppState {
   tasks: Task[];
   rewards: Reward[];
   logs: Record<string, string[]>; // date -> array of task IDs
   balance: number;
   transactions: Transaction[];
+  pet: Pet | null;
 }

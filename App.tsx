@@ -12,6 +12,7 @@ import { DailyView } from './components/tabs/DailyView';
 import { StoreView } from './components/tabs/StoreView';
 import { CalendarView } from './components/tabs/CalendarView';
 import { SettingsView } from './components/tabs/SettingsView';
+import { PetView } from './components/tabs/PetView';
 
 // Modals
 import { OnboardingModal } from './components/modals/OnboardingModal';
@@ -53,6 +54,17 @@ export default function App() {
                 onToggleTask={actions.toggleTask}
                 themeKey={state.themeKey}
                 dateKey={state.dateKey}
+            />
+        )}
+
+        {state.activeTab === 'pet' && (
+            <PetView 
+                pet={state.pet}
+                balance={state.balance}
+                onAdopt={actions.adoptPet}
+                onFeed={actions.feedPet}
+                theme={activeTheme}
+                onShowToast={actions.showToast}
             />
         )}
 
