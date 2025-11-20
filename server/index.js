@@ -12,11 +12,11 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // Check for KV Binding
-    if (!env.STAR_DATA) {
+    // Check for D1 Binding
+    if (!env.DB) {
       return new Response(
         JSON.stringify({ 
-          error: "Server Error: KV Binding 'STAR_DATA' not found. Please check wrangler.toml." 
+          error: "Server Error: D1 Binding 'DB' not found. Please check wrangler.toml." 
         }), 
         {
           status: 500,
@@ -41,69 +41,97 @@ export default {
       try {
         // GET: Retrieve and Aggregate Data
         if (request.method === "GET") {
-          // Fetch all potential keys in parallel
-          const [legacyRaw, tasksRaw, rewardsRaw, settingsRaw, activityRaw] = await Promise.all([
-            env.STAR_DATA.get(familyId),
-            env.STAR_DATA.get(`${familyId}:tasks`),
-            env.STAR_DATA.get(`${familyId}:rewards`),
-            env.STAR_DATA.get(`${familyId}:settings`),
-            env.STAR_DATA.get(`${familyId}:activity`)
-          ]);
+          // Fetch all scopes for this family_id
+          const { results } = await env.DB.prepare(
+            "SELECT scope, data FROM family_data WHERE family_id = ?"
+          ).bind(familyId).all();
 
-          const legacy = legacyRaw ? JSON.parse(legacyRaw) : {};
-          const tasks = tasksRaw ? JSON.parse(tasksRaw) : null;
-          const rewards = rewardsRaw ? JSON.parse(rewardsRaw) : null;
-          const settings = settingsRaw ? JSON.parse(settingsRaw) : null;
-          const activity = activityRaw ? JSON.parse(activityRaw) : null;
-
-          // Merge strategy: New Key > Legacy Key > Default
+          // Initialize default structure
           const data = {
-            tasks: tasks || legacy.tasks || [],
-            rewards: rewards || legacy.rewards || [],
-            // Settings
-            userName: settings?.userName ?? legacy.userName ?? "",
-            themeKey: settings?.themeKey ?? legacy.themeKey ?? "lemon",
-            // Activity
-            logs: activity?.logs || legacy.logs || {},
-            balance: activity?.balance ?? legacy.balance ?? 0,
-            transactions: activity?.transactions || legacy.transactions || []
+            tasks: [],
+            rewards: [],
+            userName: "",
+            themeKey: "lemon",
+            logs: {},
+            balance: 0,
+            transactions: []
           };
+
+          if (results && results.length > 0) {
+            results.forEach(row => {
+              let content;
+              try {
+                content = JSON.parse(row.data);
+              } catch (e) {
+                return;
+              }
+
+              switch (row.scope) {
+                case 'tasks':
+                  if (Array.isArray(content)) data.tasks = content;
+                  break;
+                case 'rewards':
+                  if (Array.isArray(content)) data.rewards = content;
+                  break;
+                case 'settings':
+                  if (content.userName) data.userName = content.userName;
+                  if (content.themeKey) data.themeKey = content.themeKey;
+                  break;
+                case 'activity':
+                  if (content.logs) data.logs = content.logs;
+                  if (content.balance !== undefined) data.balance = content.balance;
+                  if (content.transactions) data.transactions = content.transactions;
+                  break;
+                case 'legacy':
+                   // Fallback logic for legacy blobs if they exist in DB
+                   if (!data.tasks.length && content.tasks) data.tasks = content.tasks;
+                   if (!data.rewards.length && content.rewards) data.rewards = content.rewards;
+                   if (!data.userName && content.userName) data.userName = content.userName;
+                   break;
+              }
+            });
+          }
           
           return new Response(JSON.stringify({ data }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
-        // POST: Save Data (Split by scope)
+        // POST: Save Data
         if (request.method === "POST") {
           const body = await request.json();
-          const { scope, data } = body;
+          let { scope, data } = body;
           
+          // Handle legacy payload without scope
           if (!scope) {
-             // Fallback: If no scope provided, attempt to save as legacy (full blob)
-             // This ensures backward compatibility if frontend hasn't updated
-             if (body.tasks) {
-                 await env.STAR_DATA.put(familyId, JSON.stringify(body));
-                 return new Response(JSON.stringify({ success: true, mode: 'legacy' }), {
+             if (body.tasks || body.rewards) {
+                 scope = 'legacy';
+                 // Save the entire body as legacy
+                 data = body; 
+             } else {
+                 return new Response(JSON.stringify({ error: "Missing scope in payload" }), {
+                    status: 400,
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                  });
              }
-             return new Response(JSON.stringify({ error: "Missing scope in payload" }), {
-                status: 400,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-             });
           }
 
-          // Save to specific KV key based on scope
-          // Keys: familyId:tasks, familyId:rewards, familyId:settings, familyId:activity
-          const key = `${familyId}:${scope}`;
-          await env.STAR_DATA.put(key, JSON.stringify(data));
+          // Insert or Replace into D1
+          const query = `
+            INSERT OR REPLACE INTO family_data (family_id, scope, data, updated_at) 
+            VALUES (?, ?, ?, ?)
+          `;
+
+          await env.DB.prepare(query)
+            .bind(familyId, scope, JSON.stringify(data), Date.now())
+            .run();
 
           return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
       } catch (err) {
+        console.error(err);
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -112,7 +140,7 @@ export default {
     }
 
     // Default Route
-    return new Response("Star Achiever API (Cloudflare Worker) is Running 🌟", {
+    return new Response("Star Achiever API (D1 Version) is Running 🌟", {
       status: 200,
       headers: corsHeaders,
     });
