@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <title>小小之星 - 积分奖励系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Nunito', 'ZCOOL KuaiLe', sans-serif;
+        background-color: #FFF9F0; /* Warm Cream */
+        -webkit-tap-highlight-color: transparent;
+        color: #4A4A4A;
+      }
+      .hide-scrollbar::-webkit-scrollbar { display: none; }
+      .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      .bounce-click:active { transform: scale(0.95); }
+      .font-cute { font-family: 'ZCOOL KuaiLe', cursive; }
+      
+      @keyframes pop {
+        0% { transform: scale(1); }
+        40% { transform: scale(1.4); }
+        100% { transform: scale(1); }
+      }
+      .animate-pop { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+      
+      @keyframes slideUp {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      .animate-slide-up { animation: slideUp 0.5s ease-out forwards; }
+
+      /* Celebration Animations */
+      @keyframes starBounceIn {
+        0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+        50% { transform: scale(1.5) rotate(10deg); opacity: 1; }
+        70% { transform: scale(0.9) rotate(-5deg); }
+        100% { transform: scale(1) rotate(0deg); }
+      }
+      .animate-star-enter { animation: starBounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards; }
+      
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+      }
+      .animate-float { animation: float 3s ease-in-out infinite; }
+      
+      @keyframes fadeOut {
+        0% { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      .animate-fade-out { animation: fadeOut 0.3s ease-out forwards; }
+
+      /* More intense shake for penalty */
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10% { transform: translateX(-8px) rotate(-5deg); }
+        20% { transform: translateX(8px) rotate(5deg); }
+        30% { transform: translateX(-8px) rotate(-5deg); }
+        40% { transform: translateX(8px) rotate(5deg); }
+        50% { transform: translateX(-4px) rotate(-2deg); }
+        60% { transform: translateX(4px) rotate(2deg); }
+      }
+      .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+
+      /* Rain Drop Effect */
+      @keyframes rainDrop {
+        0% { transform: translateY(-20px); opacity: 0; }
+        20% { opacity: 1; }
+        100% { transform: translateY(30px); opacity: 0; }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "canvas-confetti": "https://cdn.skypack.dev/canvas-confetti@1.6.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
