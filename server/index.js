@@ -12,119 +12,152 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // Check for D1 Binding
     if (!env.DB) {
       return new Response(
-        JSON.stringify({ 
-          error: "Server Error: D1 Binding 'DB' not found. Please check wrangler.toml." 
-        }), 
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Server Error: D1 Binding 'DB' not found." }), 
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const url = new URL(request.url);
 
-    // API Route: /api/sync
     if (url.pathname.endsWith("/api/sync")) {
       const familyId = url.searchParams.get("familyId");
 
       if (!familyId) {
         return new Response(JSON.stringify({ error: "Missing familyId" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
 
       try {
-        // GET: Retrieve and Aggregate Data
+        // === GET: 读取并组装数据 ===
         if (request.method === "GET") {
-          // Fetch all scopes for this family_id
-          const { results } = await env.DB.prepare(
-            "SELECT scope, data FROM family_data WHERE family_id = ?"
-          ).bind(familyId).all();
+          // 1. 获取基础设置
+          const settings = await env.DB.prepare("SELECT * FROM settings WHERE family_id = ?").bind(familyId).first();
+          
+          // 如果没有找到该家庭，返回空结构
+          if (!settings) {
+             return new Response(JSON.stringify({ data: null }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" }
+             });
+          }
 
-          // Initialize default structure
-          const data = {
-            tasks: [],
-            rewards: [],
-            userName: "",
-            themeKey: "lemon",
-            logs: {},
-            balance: 0,
-            transactions: []
-          };
+          // 2. 并行获取其他表数据
+          const [tasksResult, rewardsResult, logsResult, txResult] = await Promise.all([
+            env.DB.prepare("SELECT * FROM tasks WHERE family_id = ?").bind(familyId).all(),
+            env.DB.prepare("SELECT * FROM rewards WHERE family_id = ?").bind(familyId).all(),
+            env.DB.prepare("SELECT date_key, task_id FROM task_logs WHERE family_id = ?").bind(familyId).all(),
+            env.DB.prepare("SELECT * FROM transactions WHERE family_id = ? ORDER BY created_at DESC LIMIT 100").bind(familyId).all()
+          ]);
 
-          if (results && results.length > 0) {
-            results.forEach(row => {
-              let content;
-              try {
-                content = JSON.parse(row.data);
-              } catch (e) {
-                return;
-              }
-
-              switch (row.scope) {
-                case 'tasks':
-                  if (Array.isArray(content)) data.tasks = content;
-                  break;
-                case 'rewards':
-                  if (Array.isArray(content)) data.rewards = content;
-                  break;
-                case 'settings':
-                  if (content.userName) data.userName = content.userName;
-                  if (content.themeKey) data.themeKey = content.themeKey;
-                  break;
-                case 'activity':
-                  if (content.logs) data.logs = content.logs;
-                  if (content.balance !== undefined) data.balance = content.balance;
-                  if (content.transactions) data.transactions = content.transactions;
-                  break;
-                case 'legacy':
-                   // Fallback logic for legacy blobs if they exist in DB
-                   if (!data.tasks.length && content.tasks) data.tasks = content.tasks;
-                   if (!data.rewards.length && content.rewards) data.rewards = content.rewards;
-                   if (!data.userName && content.userName) data.userName = content.userName;
-                   break;
-              }
+          // 3. 转换 Logs 格式 (DB Rows -> Record<date, ids[]>)
+          const logsMap = {};
+          if (logsResult.results) {
+            logsResult.results.forEach(row => {
+                if (!logsMap[row.date_key]) logsMap[row.date_key] = [];
+                logsMap[row.date_key].push(row.task_id);
             });
           }
+
+          // 4. 组装最终 JSON
+          const data = {
+            familyId: settings.family_id,
+            userName: settings.user_name || "",
+            themeKey: settings.theme_key || "lemon",
+            balance: settings.balance || 0,
+            tasks: tasksResult.results || [],
+            rewards: rewardsResult.results || [],
+            logs: logsMap,
+            transactions: txResult.results || []
+          };
           
           return new Response(JSON.stringify({ data }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
-        // POST: Save Data
+        // === POST: 保存数据 (分 Scope 处理) ===
         if (request.method === "POST") {
           const body = await request.json();
-          let { scope, data } = body;
+          const { scope, data } = body;
           
-          // Handle legacy payload without scope
-          if (!scope) {
-             if (body.tasks || body.rewards) {
-                 scope = 'legacy';
-                 // Save the entire body as legacy
-                 data = body; 
-             } else {
-                 return new Response(JSON.stringify({ error: "Missing scope in payload" }), {
-                    status: 400,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                 });
+          if (!scope) throw new Error("Missing scope");
+
+          const timestamp = Date.now();
+          const statements = [];
+
+          // 确保主表存在 (Upsert family entry)
+          statements.push(
+            env.DB.prepare("INSERT OR IGNORE INTO settings (family_id, created_at, updated_at) VALUES (?, ?, ?)")
+            .bind(familyId, timestamp, timestamp)
+          );
+
+          if (scope === 'tasks') {
+             // 策略: 删除该家庭所有旧任务，插入新列表 (全量同步)
+             statements.push(env.DB.prepare("DELETE FROM tasks WHERE family_id = ?").bind(familyId));
+             const insertStmt = env.DB.prepare("INSERT INTO tasks (id, family_id, title, category, stars, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
+             if (Array.isArray(data)) {
+                data.forEach(t => {
+                    statements.push(insertStmt.bind(t.id, familyId, t.title, t.category, t.stars, timestamp));
+                });
+             }
+          }
+          else if (scope === 'rewards') {
+             statements.push(env.DB.prepare("DELETE FROM rewards WHERE family_id = ?").bind(familyId));
+             const insertStmt = env.DB.prepare("INSERT INTO rewards (id, family_id, title, cost, icon, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
+             if (Array.isArray(data)) {
+                data.forEach(r => {
+                    statements.push(insertStmt.bind(r.id, familyId, r.title, r.cost, r.icon, timestamp));
+                });
+             }
+          }
+          else if (scope === 'settings') {
+             // 更新设置 (Partial Update)
+             const updateStmt = env.DB.prepare(`
+                UPDATE settings 
+                SET user_name = ?, theme_key = ?, updated_at = ? 
+                WHERE family_id = ?
+             `);
+             statements.push(updateStmt.bind(data.userName, data.themeKey, timestamp, familyId));
+          }
+          else if (scope === 'activity') {
+             // 1. 更新余额
+             if (data.balance !== undefined) {
+                statements.push(env.DB.prepare("UPDATE settings SET balance = ?, updated_at = ? WHERE family_id = ?").bind(data.balance, timestamp, familyId));
+             }
+
+             // 2. 覆盖 Logs (全量同步)
+             // 注意：对于日志量特别大的情况，全量覆盖可能效率较低。但在家庭场景下是可以接受的。
+             if (data.logs) {
+                statements.push(env.DB.prepare("DELETE FROM task_logs WHERE family_id = ?").bind(familyId));
+                const logInsert = env.DB.prepare("INSERT INTO task_logs (family_id, date_key, task_id, created_at) VALUES (?, ?, ?, ?)");
+                
+                for (const [dateKey, taskIds] of Object.entries(data.logs)) {
+                    if (Array.isArray(taskIds)) {
+                        taskIds.forEach(tid => {
+                             statements.push(logInsert.bind(familyId, dateKey, tid, timestamp));
+                        });
+                    }
+                }
+             }
+
+             // 3. 覆盖 Transactions (全量同步)
+             if (data.transactions) {
+                statements.push(env.DB.prepare("DELETE FROM transactions WHERE family_id = ?").bind(familyId));
+                const txInsert = env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                if (Array.isArray(data.transactions)) {
+                    data.transactions.forEach(tx => {
+                        statements.push(txInsert.bind(tx.id, familyId, tx.date, tx.description, tx.amount, tx.type, timestamp));
+                    });
+                }
              }
           }
 
-          // Insert or Replace into D1
-          const query = `
-            INSERT OR REPLACE INTO family_data (family_id, scope, data, updated_at) 
-            VALUES (?, ?, ?, ?)
-          `;
-
-          await env.DB.prepare(query)
-            .bind(familyId, scope, JSON.stringify(data), Date.now())
-            .run();
+          // 执行批量事务
+          if (statements.length > 0) {
+              await env.DB.batch(statements);
+          }
 
           return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -139,8 +172,7 @@ export default {
       }
     }
 
-    // Default Route
-    return new Response("Star Achiever API (D1 Version) is Running 🌟", {
+    return new Response("Star Achiever API (Relational D1) is Running 🌟", {
       status: 200,
       headers: corsHeaders,
     });
