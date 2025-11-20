@@ -1,5 +1,5 @@
 
-import { Task, TaskCategory, Reward, PetType } from './types';
+import { Task, TaskCategory, Reward } from './types';
 
 // [CLOUDFLARE CONFIG]
 // Cloudflare Worker 后端地址
@@ -60,28 +60,12 @@ export const CATEGORY_STYLES = {
     [TaskCategory.PENALTY]: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', iconBg: 'bg-rose-400', accent: 'text-rose-500' },
 };
 
-// --- Pet Constants ---
-
-export const PET_CONFIG = {
-  MAX_LEVEL: 50,
-  EXP_BASE: 100, // Exp needed for level 1 -> 2
-  HUNGER_HOURS: 24, // Hours until pet gets hungry
-  SICK_HOURS: 48, // Hours until pet gets sick/sad
+// --- Garden System Thresholds ---
+// Based on total lifetime positive stars
+export const GARDEN_LEVELS = {
+    SPROUT: 0,
+    FLOWER: 50,
+    BUSH: 150,
+    TREE: 300,
+    FOREST: 600
 };
-
-// Exp needed to reach next level = BASE * Level
-export const getExpForNextLevel = (level: number) => PET_CONFIG.EXP_BASE * level;
-
-export const PET_EVOLUTION: Record<PetType, string[]> = {
-  dino:    ['🥚', '🦖', '🦕', '🐉'], // Egg, Baby T-Rex, Brachiosaurus, Dragon
-  unicorn: ['🥚', '🦄', '🎠', '🌈'], // Egg, Unicorn Head, Carousel, Rainbow
-  cat:     ['🥚', '🐱', '🦁', '🐯'], // Egg, Cat, Lion, Tiger
-  dragon:  ['🥚', '🦎', '🐊', '🐲'], // Egg, Lizard, Croc, Dragon
-};
-
-export const PET_FOODS = [
-  { id: 'candy', name: '糖果', cost: 5, exp: 10, icon: '🍬' },
-  { id: 'apple', name: '苹果', cost: 10, exp: 25, icon: '🍎' },
-  { id: 'burger', name: '汉堡', cost: 20, exp: 60, icon: '🍔' },
-  { id: 'cake', name: '蛋糕', cost: 50, exp: 150, icon: '🎂' },
-];

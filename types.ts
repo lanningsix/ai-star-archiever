@@ -34,16 +34,12 @@ export interface Transaction {
   type: 'EARN' | 'SPEND' | 'PENALTY';
 }
 
-// --- Pet System ---
-export type PetType = 'dino' | 'unicorn' | 'cat' | 'dragon';
-
+// Added Pet interface to satisfy cloud.ts import
 export interface Pet {
   name: string;
-  type: PetType;
   level: number;
-  exp: number;
-  lastFedTime: number; // Timestamp
-  bornTime: number;
+  experience: number;
+  lastInteracted: number;
 }
 
 export interface AppState {
@@ -52,5 +48,4 @@ export interface AppState {
   logs: Record<string, string[]>; // date -> array of task IDs
   balance: number;
   transactions: Transaction[];
-  pet: Pet | null;
 }

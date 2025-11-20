@@ -12,7 +12,7 @@ import { DailyView } from './components/tabs/DailyView';
 import { StoreView } from './components/tabs/StoreView';
 import { CalendarView } from './components/tabs/CalendarView';
 import { SettingsView } from './components/tabs/SettingsView';
-import { PetView } from './components/tabs/PetView';
+import { GardenView } from './components/tabs/GardenView';
 
 // Modals
 import { OnboardingModal } from './components/modals/OnboardingModal';
@@ -57,14 +57,10 @@ export default function App() {
             />
         )}
 
-        {state.activeTab === 'pet' && (
-            <PetView 
-                pet={state.pet}
-                balance={state.balance}
-                onAdopt={actions.adoptPet}
-                onFeed={actions.feedPet}
+        {state.activeTab === 'garden' && (
+            <GardenView 
+                transactions={state.transactions}
                 theme={activeTheme}
-                onShowToast={actions.showToast}
             />
         )}
 
