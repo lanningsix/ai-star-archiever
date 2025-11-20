@@ -3,11 +3,6 @@ import { Task, TaskCategory, Reward } from './types';
 
 // [CLOUDFLARE CONFIG]
 // 部署 server 目录下的代码到 Cloudflare Workers 后，将 URL 填入此处。
-// 步骤：
-// 1. cd server && npm install
-// 2. npx wrangler deploy (参考 server/README_SEALOS.md 中的 Cloudflare 指南)
-// 3. 获取 Workers 地址 (例如 https://star-api.xxx.workers.dev)
-// 4. 在下方填入地址，并保留 '/api/sync' 后缀
 export const CLOUD_API_URL = 'https://star-achiever-api.example.workers.dev/api/sync'; 
 
 export const INITIAL_TASKS: Task[] = [
@@ -49,3 +44,18 @@ export const INITIAL_REWARDS: Reward[] = [
   { id: 'r4', title: '买一个小玩具', cost: 200, icon: '🧸' },
   { id: 'r5', title: '免做家务一次', cost: 40, icon: '🧹' },
 ];
+
+export const COMMON_EMOJIS = [
+  '📺', '🎮', '🍦', '🍬', '🍟', '🍔', 
+  '🎡', '🪁', '🧸', '⚽', '🛹', '🎨',
+  '📚', '🧩', '🎸', '🚲', '🏊', '🎁',
+  '🧹', '🛏️', '🛁', '🦷', '🎒', '⏰',
+  '🦄', '🦕', '🚀', '👑', '🌈', '🍩'
+];
+
+export const CATEGORY_STYLES = {
+    [TaskCategory.LIFE]: { bg: 'bg-lime-50', border: 'border-lime-200', text: 'text-lime-700', iconBg: 'bg-lime-400', accent: 'text-lime-500' },
+    [TaskCategory.BEHAVIOR]: { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', iconBg: 'bg-sky-400', accent: 'text-sky-500' },
+    [TaskCategory.BONUS]: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', iconBg: 'bg-amber-400', accent: 'text-amber-500' },
+    [TaskCategory.PENALTY]: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', iconBg: 'bg-rose-400', accent: 'text-rose-500' },
+};
