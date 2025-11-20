@@ -46,13 +46,15 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
 **本地开发环境：**
 ```bash
-npx wrangler d1 execute STAR_DB --local --file=./schema.sql
+npx wrangler d1 execute STAR_DB --local --file=./schema.txt
 ```
 
 **远程生产环境：**
 ```bash
-npx wrangler d1 execute STAR_DB --remote --file=./schema.sql
+npx wrangler d1 execute STAR_DB --remote --file=./schema.txt
 ```
+
+或者，您可以直接复制 `server/schema.txt` 中的内容，粘贴到 Cloudflare Dashboard -> D1 -> Console 中执行。
 
 ## 5. 部署 Worker
 
@@ -67,10 +69,10 @@ npm run deploy
 
 1. 复制上面的 Worker URL。
 2. 回到项目根目录的 `constants.ts` 文件。
-3. 修改 `CLOUD_API_URL` 变量，**注意保留 `/api/sync` 后缀**：
+3. 修改 `CLOUD_API_URL` 变量，**注意保留 `/api/sync` 后缀**（如果 Worker 配置了路由，直接填根路径也可以）：
 
 ```typescript
-export const CLOUD_API_URL = 'https://star-achiever-worker.你的用户名.workers.dev/api/sync';
+export const CLOUD_API_URL = 'https://star-achiever-worker.你的用户名.workers.dev';
 ```
 
 4. 重新构建/部署你的前端应用。
@@ -78,4 +80,4 @@ export const CLOUD_API_URL = 'https://star-achiever-worker.你的用户名.worke
 ## 常见问题
 
 - **Error: D1 Binding 'DB' not found**: 检查 `wrangler.toml` 中的 binding 名称必须是 "DB"。
-- **SQL Error**: 确保在部署前执行了 `schema.sql`。
+- **SQL Error**: 确保在部署前执行了 `schema.txt` 中的建表语句。

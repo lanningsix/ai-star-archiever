@@ -1,0 +1,59 @@
+-- 1. Settings Table (存储家庭设置)
+DROP TABLE IF EXISTS settings;
+CREATE TABLE settings (
+    family_id TEXT PRIMARY KEY,
+    user_name TEXT,
+    theme_key TEXT,
+    balance INTEGER DEFAULT 0,
+    created_at INTEGER,
+    updated_at INTEGER
+);
+
+-- 2. Tasks Table (存储任务列表)
+DROP TABLE IF EXISTS tasks;
+CREATE TABLE tasks (
+    id TEXT,
+    family_id TEXT,
+    title TEXT,
+    category TEXT,
+    stars INTEGER,
+    updated_at INTEGER,
+    PRIMARY KEY (family_id, id)
+);
+
+-- 3. Rewards Table (存储奖励列表)
+DROP TABLE IF EXISTS rewards;
+CREATE TABLE rewards (
+    id TEXT,
+    family_id TEXT,
+    title TEXT,
+    cost INTEGER,
+    icon TEXT,
+    updated_at INTEGER,
+    PRIMARY KEY (family_id, id)
+);
+
+-- 4. Task Logs Table (存储每日打卡记录)
+DROP TABLE IF EXISTS task_logs;
+CREATE TABLE task_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id TEXT,
+    date_key TEXT,
+    task_id TEXT,
+    created_at INTEGER
+);
+-- 创建索引以加速按日期查询
+CREATE INDEX IF NOT EXISTS idx_logs_family_date ON task_logs(family_id, date_key);
+
+-- 5. Transactions Table (存储积分流水)
+DROP TABLE IF EXISTS transactions;
+CREATE TABLE transactions (
+    id TEXT,
+    family_id TEXT,
+    date TEXT,
+    description TEXT,
+    amount INTEGER,
+    type TEXT,
+    created_at INTEGER,
+    PRIMARY KEY (family_id, id)
+);
