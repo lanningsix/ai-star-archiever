@@ -1,9 +1,12 @@
 
+
+
 import React, { useState, useMemo } from 'react';
 import { BarChart2, PieChart, TrendingUp, Award, Zap, ShoppingBag, ArrowDown, ArrowUp, Lock, Trophy } from 'lucide-react';
-import { Task, TaskCategory, Transaction } from '../../types';
+import { Task, TaskCategory, Transaction, Achievement } from '../../types';
 import { Theme } from '../../styles/themes';
 import { CATEGORY_STYLES, ACHIEVEMENTS } from '../../constants';
+import { AchievementModal } from '../modals/AchievementModal';
 
 interface StatsViewProps {
   tasks: Task[];
@@ -18,6 +21,7 @@ type TimeRange = 'day' | 'week' | 'month';
 
 export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions, currentDate, theme, unlockedAchievements = [] }) => {
   const [range, setRange] = useState<TimeRange>('week');
+  const [viewAchievement, setViewAchievement] = useState<Achievement | null>(null);
 
   // Helper: Start of Week (Monday)
   const getStartOfWeek = (d: Date) => {
@@ -173,6 +177,14 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
 
   return (
     <div className="py-4 pb-24 animate-slide-up space-y-6">
+      
+      {/* Detail Modal */}
+      <AchievementModal 
+          achievement={viewAchievement} 
+          onClose={() => setViewAchievement(null)} 
+          isLocked={viewAchievement ? !unlockedAchievements.includes(viewAchievement.id) : false}
+      />
+
       <div className="px-4 flex items-center justify-between">
           <h2 className={`text-xl font-cute flex items-center ${theme.accent}`}>
               <span className={`${theme.light} p-2 rounded-xl mr-3 shadow-sm -rotate-3`}><PieChart className={`w-5 h-5 ${theme.accent}`} /></span>
@@ -203,24 +215,25 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
                    <Trophy size={20} className="text-yellow-300" /> 荣誉勋章墙
                </h3>
                
-               <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 relative z-10">
+               <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 relative z-10">
                    {ACHIEVEMENTS.map(ach => {
                        const isUnlocked = unlockedAchievements.includes(ach.id);
                        return (
-                           <div 
+                           <button 
                                 key={ach.id} 
+                                onClick={() => setViewAchievement(ach)}
                                 className={`
-                                    flex flex-col items-center justify-center p-2 rounded-xl transition-all
-                                    ${isUnlocked ? 'bg-white/20 backdrop-blur-sm shadow-sm' : 'bg-black/20 opacity-60 grayscale'}
+                                    flex flex-col items-center justify-center p-2 rounded-xl transition-all active:scale-95 hover:scale-105
+                                    ${isUnlocked ? 'bg-white/20 backdrop-blur-sm shadow-sm' : 'bg-black/20 opacity-60 grayscale hover:opacity-80'}
                                 `}
                            >
-                               <div className={`text-3xl mb-1 ${isUnlocked ? 'animate-pop' : ''}`}>
-                                   {isUnlocked ? ach.icon : <Lock size={24} className="text-white/30 p-1"/>}
+                               <div className={`text-2xl mb-1 ${isUnlocked ? 'animate-pop' : ''}`}>
+                                   {isUnlocked ? ach.icon : <Lock size={20} className="text-white/30 p-1"/>}
                                </div>
-                               <div className="text-[9px] font-bold text-center leading-tight opacity-90">
+                               <div className="text-[9px] font-bold text-center leading-tight opacity-90 truncate w-full">
                                    {ach.title}
                                </div>
-                           </div>
+                           </button>
                        );
                    })}
                </div>

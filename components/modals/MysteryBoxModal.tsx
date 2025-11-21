@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -20,12 +19,27 @@ export const MysteryBoxModal: React.FC<MysteryBoxModalProps> = ({ isOpen, reward
             const t2 = setTimeout(() => setStage('opening'), 1500);
             const t3 = setTimeout(() => {
                 setStage('revealed');
-                confetti({
-                    particleCount: 150,
-                    spread: 100,
-                    origin: { y: 0.6 },
-                    colors: ['#FFD700', '#F472B6', '#A78BFA', '#34D399']
-                });
+                try {
+                    // Safe confetti call
+                    // @ts-ignore
+                    if (typeof confetti === 'function') {
+                        confetti({
+                            particleCount: 150,
+                            spread: 100,
+                            origin: { y: 0.6 },
+                            colors: ['#FFD700', '#F472B6', '#A78BFA', '#34D399']
+                        });
+                    } else if (typeof (window as any).confetti === 'function') {
+                        (window as any).confetti({
+                            particleCount: 150,
+                            spread: 100,
+                            origin: { y: 0.6 },
+                            colors: ['#FFD700', '#F472B6', '#A78BFA', '#34D399']
+                        });
+                    }
+                } catch (e) {
+                    console.warn("Confetti skipped");
+                }
             }, 2000);
             
             return () => {

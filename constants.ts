@@ -1,5 +1,7 @@
 
 
+
+
 import { Task, TaskCategory, Reward, AvatarItem, Achievement } from './types';
 
 // [CLOUDFLARE CONFIG]
@@ -60,11 +62,20 @@ export const MYSTERY_BOX_REWARDS: { title: string, icon: string, weight: number,
 ];
 
 export const COMMON_EMOJIS = [
-  '📺', '🎮', '🍦', '🍬', '🍟', '🍟', 
-  '🎡', '🪁', '🧸', '⚽', '🛹', '🎨',
-  '📚', '🧩', '🎸', '🚲', '🏊', '🎁',
-  '🧹', '🛏️', '🛁', '🦷', '🎒', '⏰',
-  '🦄', '🦕', '🚀', '👑', '🌈', '🍩'
+  // Toys & Fun
+  '📺', '🎮', '🧸', '🧩', '🎨', '🪁', '🛹', '🚲', '🎁', '🎈', '🏰', '🎡', '🎠', '🎪', '🎟️',
+  // Food & Drink
+  '🍦', '🍬', '🍫', '🍪', '🍩', '🍰', '🍟', '🍔', '🍕', '🌭', '🍿', '🥤', '🍉', '🍓', '🍒', '🍎',
+  // Activities & Tools
+  '📚', '📖', '✏️', '🖌️', '⚽', '🏀', '🏊', '🏃', '🧹', '🛏️', '🛁', '🦷', '🎒', '⏰', '🔭', '🔬',
+  // Animals
+  '🐶', '🐱', '🐰', '🐼', '🐨', '🦁', '🐯', '🦄', '🦕', '🦖', '🐢', '🐬', '🐳', '🦋', '🐞',
+  // Nature & Weather
+  '🌞', '🌈', '⭐', '🌙', '☁️', '❄️', '🌸', '🌺', '🌻', '🌲', '🌊', '🔥', '💧', '🌍',
+  // Objects
+  '👑', '💎', '🏆', '🥇', '📱', '📸', '⌚', '👓', '🧢', '👗', '👕', '👟', '🧦', '🧤',
+  // Emotions/People
+  '😀', '😎', '🥳', '👻', '👽', '🤖', '🦸', '🧚', '🧜', '🧞', '🧙', '🕺', '💃'
 ];
 
 export const CATEGORY_STYLES = {
@@ -92,12 +103,22 @@ export const ACHIEVEMENTS: Achievement[] = [
         threshold: 3
     },
     {
-        id: 'RICH_KID',
-        title: '小小富翁',
-        description: '累计获得 500 颗星星',
-        icon: '💰',
-        conditionType: 'lifetime_stars',
-        threshold: 500
+        id: 'HEALTHY_KID',
+        title: '生活小达人',
+        description: '完成 20 次生活习惯任务',
+        icon: '🌞',
+        conditionType: 'category_count',
+        threshold: 20,
+        categoryFilter: TaskCategory.LIFE
+    },
+     {
+        id: 'SCHOLAR',
+        title: '小小博士',
+        description: '完成 20 次行为习惯任务',
+        icon: '🎓',
+        conditionType: 'category_count',
+        threshold: 20,
+        categoryFilter: TaskCategory.BEHAVIOR
     },
     {
         id: 'HELPER_10',
@@ -117,13 +138,53 @@ export const ACHIEVEMENTS: Achievement[] = [
         threshold: 7
     },
     {
+        id: 'SAVING_MASTER',
+        title: '储蓄专家',
+        description: '当前持有星星超过 200 颗',
+        icon: '🐷',
+        conditionType: 'balance_level',
+        threshold: 200
+    },
+    {
+        id: 'SHOPAHOLIC',
+        title: '购物狂',
+        description: '在商城兑换 5 次奖励',
+        icon: '🛍️',
+        conditionType: 'redemption_count',
+        threshold: 5
+    },
+    {
+        id: 'LUCKY_DOG',
+        title: '幸运儿',
+        description: '开启 5 次神秘盲盒',
+        icon: '🎰',
+        conditionType: 'mystery_box_count',
+        threshold: 5
+    },
+    {
+        id: 'FASHIONISTA',
+        title: '时尚达人',
+        description: '拥有 5 件不同的装扮',
+        icon: '🕶️',
+        conditionType: 'avatar_count',
+        threshold: 5
+    },
+    {
         id: 'WISHLIST_1',
         title: '梦想成真',
         description: '达成 1 个心愿',
         icon: '🌠',
         conditionType: 'wishlist_complete',
         threshold: 1
-    }
+    },
+    {
+        id: 'RICH_KID',
+        title: '小小富翁',
+        description: '累计获得 1000 颗星星',
+        icon: '💰',
+        conditionType: 'lifetime_stars',
+        threshold: 1000
+    },
 ];
 
 // --- Avatar Items ---

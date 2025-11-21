@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS, ACHIEVEMENTS, MYSTERY_BOX_COST, MYSTERY_BOX_REWARDS } from '../constants';
-import { Task, Reward, TaskCategory, Transaction, AppState, AvatarState, AvatarItem, WishlistGoal, Achievement } from '../types';
+import { Task, Reward, TaskCategory, Transaction, WishlistGoal, Achievement } from '../types';
 import { ThemeKey } from '../styles/themes';
 import { cloudService, DataScope } from '../services/cloud';
 import { ToastType } from '../components/Toast';
@@ -44,14 +44,6 @@ export const useAppLogic = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('app_transactions');
     return saved ? JSON.parse(saved) : [];
-  });
-
-  const [avatar, setAvatar] = useState<AvatarState>(() => {
-      const saved = localStorage.getItem('app_avatar');
-      return saved ? JSON.parse(saved) : {
-          config: { skinColor: '#FFDFC4', body: 'b_shirt_red' },
-          ownedItems: ['b_shirt_red']
-      };
   });
 
   // New Stats State
@@ -100,7 +92,6 @@ export const useAppLogic = () => {
   useEffect(() => localStorage.setItem('app_logs', JSON.stringify(logs)), [logs]);
   useEffect(() => localStorage.setItem('app_balance', balance.toString()), [balance]);
   useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
-  useEffect(() => localStorage.setItem('app_avatar', JSON.stringify(avatar)), [avatar]);
   useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
   useEffect(() => localStorage.setItem('app_lifetime', lifetimeEarnings.toString()), [lifetimeEarnings]);
   useEffect(() => localStorage.setItem('app_achievements', JSON.stringify(unlockedAchievements)), [unlockedAchievements]);
@@ -116,7 +107,6 @@ export const useAppLogic = () => {
   // Helper: Calculate Streak
   const streak = useMemo(() => {
     let currentStreak = 0;
-    // Start from yesterday to check history, or today if completed today
     const todayKey = getDateKey(new Date());
     
     // Check today
@@ -126,7 +116,7 @@ export const useAppLogic = () => {
 
     // Check backwards
     let d = new Date();
-    d.setDate(d.getDate() - 1); // Start with yesterday
+    d.setDate(d.getDate() - 1); 
     
     while (true) {
         const k = getDateKey(d);
@@ -148,23 +138,64 @@ export const useAppLogic = () => {
     setToast(prev => ({ ...prev, show: false }));
   }, []);
 
+  // Safe confetti wrapper
+  const safeConfetti = (opts: any) => {
+      try {
+          // @ts-ignore
+          if (typeof confetti === 'function') {
+              confetti(opts);
+          } else if (typeof (window as any).confetti === 'function') {
+              (window as any).confetti(opts);
+          }
+      } catch (e) {
+          console.warn('Confetti failed to load or execute', e);
+      }
+  };
+
   // Check Achievements Logic
-  const checkAchievements = (currentLifetime: number, currentWishlist: WishlistGoal[], currentStreak: number) => {
+  const checkAchievements = () => {
       const newUnlocks: string[] = [];
 
       ACHIEVEMENTS.forEach(ach => {
           if (unlockedAchievements.includes(ach.id)) return;
 
           let unlocked = false;
-          if (ach.conditionType === 'lifetime_stars') {
-              if (currentLifetime >= ach.threshold) unlocked = true;
-          } else if (ach.conditionType === 'streak') {
-              if (currentStreak >= ach.threshold) unlocked = true;
-          } else if (ach.conditionType === 'category_count') {
-              // Count occurrences in logs (expensive, maybe optimize later or only check on task toggle)
-              // For now, let's do a rough check or rely on specific action triggers
-          } else if (ach.conditionType === 'wishlist_complete') {
-             // Handled in deposit
+          
+          switch (ach.conditionType) {
+            case 'lifetime_stars':
+              if (lifetimeEarnings >= ach.threshold) unlocked = true;
+              break;
+            case 'streak':
+              if (streak >= ach.threshold) unlocked = true;
+              break;
+            case 'category_count':
+               if (ach.categoryFilter) {
+                 let count = 0;
+                 Object.values(logs).forEach(dayLog => {
+                     dayLog.forEach(tid => {
+                         const t = tasks.find(tt => tt.id === tid);
+                         if (t && t.category === ach.categoryFilter) count++;
+                     });
+                 });
+                 if (count >= ach.threshold) unlocked = true;
+               }
+               break;
+            case 'wishlist_complete':
+               break;
+            case 'balance_level':
+               if (balance >= ach.threshold) unlocked = true;
+               break;
+            case 'redemption_count':
+               const redeemCount = transactions.filter(t => t.amount < 0 && (t.description.includes('兑换') || t.description.includes('购买'))).length;
+               if (redeemCount >= ach.threshold) unlocked = true;
+               break;
+            case 'mystery_box_count':
+               const boxCount = transactions.filter(t => t.description.includes('盲盒')).length;
+               if (boxCount >= ach.threshold) unlocked = true;
+               break;
+            case 'avatar_count':
+               // Feature removed, skip check
+               break;
           }
           
           if (unlocked) {
@@ -180,13 +211,13 @@ export const useAppLogic = () => {
       }
   };
 
-  // Watch for Streak Achievements
   useEffect(() => {
-      checkAchievements(lifetimeEarnings, wishlist, streak);
-  }, [streak, lifetimeEarnings]);
+      const timeout = setTimeout(() => {
+        checkAchievements();
+      }, 500);
+      return () => clearTimeout(timeout);
+  }, [streak, lifetimeEarnings, balance, transactions.length, logs]);
 
-
-  // Ensure voices are loaded
   useEffect(() => {
     const loadVoices = () => {
         if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -199,7 +230,6 @@ export const useAppLogic = () => {
     }
   }, []);
 
-  // Text to Speech
   const speak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     
@@ -222,20 +252,6 @@ export const useAppLogic = () => {
     window.speechSynthesis.speak(utterance);
   }, []);
 
-  // Safe confetti wrapper
-  const safeConfetti = (opts: any) => {
-      try {
-          // @ts-ignore
-          if (typeof confetti === 'function') {
-              confetti(opts);
-          } else if (typeof (window as any).confetti === 'function') {
-              (window as any).confetti(opts);
-          }
-      } catch (e) {
-          console.warn('Confetti failed to load or execute', e);
-      }
-  };
-
   // --- Cloud Logic ---
   const handleCloudLoad = async (targetFamilyId: string, silent = false, scope = 'all') => {
     if (!targetFamilyId) return;
@@ -254,7 +270,6 @@ export const useAppLogic = () => {
         if (data.transactions) setTransactions(data.transactions);
         if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
         if (data.userName) setUserName(data.userName);
-        if (data.avatar) setAvatar(data.avatar);
         if (data.lifetimeEarnings !== undefined) setLifetimeEarnings(data.lifetimeEarnings);
         if (data.unlockedAchievements) setUnlockedAchievements(data.unlockedAchievements);
         
@@ -295,7 +310,6 @@ export const useAppLogic = () => {
     }
   };
 
-  // Initialization load
   useEffect(() => {
     if (familyId) {
       handleCloudLoad(familyId, true, 'all').finally(() => {
@@ -304,7 +318,6 @@ export const useAppLogic = () => {
     }
   }, []);
 
-  // Tab refresh
   useEffect(() => {
     if (familyId && isSyncReady) {
         const fetchTab = async () => {
@@ -314,7 +327,7 @@ export const useAppLogic = () => {
             if (activeTab === 'store') scope = 'store';
             if (activeTab === 'calendar') scope = 'calendar';
             if (activeTab === 'settings') scope = 'settings';
-            if (activeTab === 'stats') scope = 'activity'; // Stats needs logs and lifetime
+            if (activeTab === 'stats') scope = 'activity';
             
             await handleCloudLoad(familyId, true, scope);
             setIsLoading(false);
@@ -323,7 +336,6 @@ export const useAppLogic = () => {
     }
   }, [activeTab]);
 
-  // Auto-save effects
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
     const t = setTimeout(() => syncData('tasks', tasks, true), 500);
@@ -342,7 +354,6 @@ export const useAppLogic = () => {
     return () => clearTimeout(t);
   }, [wishlist, familyId]);
 
-  // Unified Activity Save (Logs, Balance, Tx, Stats)
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
     const t = setTimeout(() => syncData('activity', { logs, balance, transactions, lifetimeEarnings, unlockedAchievements }, true), 500);
@@ -355,26 +366,180 @@ export const useAppLogic = () => {
     return () => clearTimeout(t);
   }, [userName, themeKey, familyId]);
 
-  const triggerStarConfetti = () => {
-    const duration = 1200;
-    const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 40, spread: 360, ticks: 80, zIndex: 150 };
 
-    const interval: any = setInterval(function() {
-      const timeLeft = animationEnd - Date.now();
-      if (timeLeft <= 0) return clearInterval(interval);
-      const particleCount = 40 * (timeLeft / duration);
-      safeConfetti({
-        ...defaults, 
-        particleCount,
-        origin: { x: 0.5, y: 0.5 },
-        shapes: ['star'],
-        colors: ['#FFD700', '#FFA500', '#FFFF00', '#F0E68C'],
-        scalar: 1.2,
-        drift: 0,
-        gravity: 0.8
+  // --- 15 VARIETIES OF CELEBRATION ANIMATIONS ---
+
+  // 1. Star Burst
+  const triggerStarConfetti = () => {
+    const duration = 1000;
+    const end = Date.now() + duration;
+    const interval: any = setInterval(() => {
+        if (Date.now() > end) return clearInterval(interval);
+        safeConfetti({ 
+            particleCount: 20, startVelocity: 30, spread: 360, ticks: 60, 
+            origin: { x: Math.random(), y: Math.random() - 0.2 }, 
+            shapes: ['star'], colors: ['#FFD700', '#FFA500', '#FFFF00'] 
+        });
+    }, 250);
+  };
+
+  // 2. Side Cannons
+  const triggerSideCannons = () => {
+      const end = Date.now() + 1000;
+      const colors = ['#a78bfa', '#f472b6', '#34d399', '#fbbf24'];
+      (function frame() {
+        safeConfetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors: colors });
+        safeConfetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: colors });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      }());
+  };
+
+  // 3. Fireworks
+  const triggerFireworks = () => {
+      const duration = 1500;
+      const end = Date.now() + duration;
+      const interval: any = setInterval(() => {
+        if (Date.now() > end) return clearInterval(interval);
+        safeConfetti({ 
+            startVelocity: 30, spread: 360, ticks: 60, zIndex: 100,
+            particleCount: 50, origin: { x: Math.random(), y: Math.random() - 0.2 },
+            colors: ['#ef4444', '#3b82f6', '#10b981', '#f59e0b']
+        });
+      }, 250);
+  };
+
+  // 4. Love Rain
+  const triggerLoveRain = () => {
+    const duration = 2000;
+    const end = Date.now() + duration;
+    (function frame() {
+      safeConfetti({ 
+          particleCount: 3, angle: 90, spread: 120, origin: { x: 0.5, y: -0.1 }, 
+          colors: ['#f472b6', '#ec4899', '#db2777'], shapes: ['circle'], scalar: 2, gravity: 1.2 
       });
-    }, 200);
+      if (Date.now() < end) requestAnimationFrame(frame);
+    }());
+  };
+
+  // 5. Gold Rush
+  const triggerGoldRush = () => {
+      safeConfetti({
+          particleCount: 150, spread: 100, origin: { y: 0.6 },
+          colors: ['#FFD700', '#FDB931', '#E5C100'], shapes: ['circle'], scalar: 1.2
+      });
+  };
+
+  // 6. Snowfall
+  const triggerSnowfall = () => {
+      const duration = 2500;
+      const end = Date.now() + duration;
+      (function frame() {
+        safeConfetti({
+          particleCount: 2, angle: 90, spread: 180, origin: { x: Math.random(), y: -0.1 },
+          colors: ['#ffffff', '#e2e8f0'], shapes: ['circle'], gravity: 0.3, drift: 0.5, ticks: 200, scalar: 0.8
+        });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      }());
+  };
+
+  // 7. Forest
+  const triggerForest = () => {
+    safeConfetti({
+        particleCount: 100, spread: 160, origin: { y: 0.6 },
+        colors: ['#22c55e', '#15803d', '#86efac'], shapes: ['square'], scalar: 1.1, ticks: 200, gravity: 0.8
+    });
+  };
+
+  // 8. Ocean
+  const triggerOcean = () => {
+    const duration = 1500;
+    const end = Date.now() + duration;
+    (function frame() {
+      safeConfetti({
+        particleCount: 5, angle: 90, spread: 100, origin: { x: 0.5, y: 1.1 },
+        startVelocity: 55, colors: ['#3b82f6', '#60a5fa', '#93c5fd'], shapes: ['circle'], gravity: 0.6, scalar: 0.9
+      });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    }());
+  };
+
+  // 9. Galaxy
+  const triggerGalaxy = () => {
+      safeConfetti({
+          particleCount: 100, spread: 360, origin: { x: 0.5, y: 0.5 },
+          colors: ['#4c1d95', '#8b5cf6', '#fbbf24', '#ffffff'], shapes: ['star'],
+          startVelocity: 40, gravity: 0.4, scalar: 1.2, ticks: 100
+      });
+  };
+
+  // 10. Comet
+  const triggerComet = () => {
+      const end = Date.now() + 800;
+      (function frame() {
+        safeConfetti({
+          particleCount: 7, angle: 45, spread: 5, origin: { x: 0, y: 1 },
+          startVelocity: 80, colors: ['#f59e0b', '#fbbf24', '#ef4444'], shapes: ['square'], drift: 0.5
+        });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      }());
+  };
+
+  // 11. Rainbow
+  const triggerRainbow = () => {
+      const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
+      safeConfetti({
+          particleCount: 200, angle: 90, spread: 160, origin: { y: 0.7 },
+          colors: colors, shapes: ['circle'], startVelocity: 45, gravity: 0.9
+      });
+  };
+
+  // 12. Fountain
+  const triggerFountain = () => {
+      const duration = 1500;
+      const end = Date.now() + duration;
+      (function frame() {
+        safeConfetti({
+          particleCount: 8, angle: 90, spread: 35, origin: { x: 0.5, y: 0.9 },
+          startVelocity: 60, colors: ['#67e8f9', '#22d3ee', '#06b6d4'], gravity: 1.5, ticks: 100
+        });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      }());
+  };
+
+  // 13. Giant
+  const triggerGiant = () => {
+      safeConfetti({
+          particleCount: 25, spread: 90, origin: { y: 0.6 },
+          scalar: 4, colors: ['#f472b6', '#22d3ee', '#fbbf24'], shapes: ['circle']
+      });
+  };
+
+  // 14. Slow Motion
+  const triggerSlowMotion = () => {
+      safeConfetti({
+          particleCount: 80, spread: 150, origin: { y: 0.6 },
+          gravity: 0.2, startVelocity: 25, ticks: 400,
+          colors: ['#94a3b8', '#cbd5e1', '#64748b'], shapes: ['square']
+      });
+  };
+
+  // 15. Pixel Art
+  const triggerPixelArt = () => {
+      safeConfetti({
+          particleCount: 200, spread: 360, origin: { x: 0.5, y: 0.5 },
+          colors: ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'],
+          shapes: ['square'], scalar: 0.8, startVelocity: 40, ticks: 100
+      });
+  };
+
+  const triggerRandomCelebration = () => {
+      const effects = [
+          triggerStarConfetti, triggerSideCannons, triggerFireworks, triggerLoveRain, 
+          triggerGoldRush, triggerSnowfall, triggerForest, triggerOcean, triggerGalaxy,
+          triggerComet, triggerRainbow, triggerFountain, triggerGiant, triggerSlowMotion, triggerPixelArt
+      ];
+      const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+      randomEffect();
   };
 
   const triggerRainConfetti = () => {
@@ -382,8 +547,7 @@ export const useAppLogic = () => {
     const end = Date.now() + duration;
     (function frame() {
       safeConfetti({
-        particleCount: 6,
-        angle: 270, spread: 10, origin: { x: Math.random(), y: -0.2 }, 
+        particleCount: 6, angle: 270, spread: 10, origin: { x: Math.random(), y: -0.2 }, 
         colors: ['#64748b', '#94a3b8', '#475569'], shapes: ['circle'], 
         gravity: 3.5, scalar: 0.6, drift: 0, ticks: 400
       });
@@ -424,15 +588,12 @@ export const useAppLogic = () => {
 
     let newLog;
     if (isCompleted) {
-      // Undo
       newLog = currentLog.filter(id => id !== task.id);
       updateBalance(-task.stars, `撤销: ${task.title}`, currentDate);
-      // Undo lifetime change if it was a positive task
       if (task.stars > 0) {
           setLifetimeEarnings(prev => Math.max(0, prev - task.stars));
       }
     } else {
-      // Complete
       setIsInteractionBlocked(true);
       newLog = [...currentLog, task.id];
       
@@ -440,35 +601,13 @@ export const useAppLogic = () => {
       const prefix = isPenalty ? '扣分' : '完成';
       updateBalance(task.stars, `${prefix}: ${task.title}`, currentDate);
       
-      // Check Category Count Achievements (Simple inline check)
-      if (!isPenalty && !unlockedAchievements.includes('HELPER_10') && task.category === TaskCategory.BONUS) {
-          let bonusCount = 0;
-          Object.values(logs).forEach(dayLog => {
-               dayLog.forEach(tid => {
-                   const t = tasks.find(tt => tt.id === tid);
-                   if (t && t.category === TaskCategory.BONUS) bonusCount++;
-               });
-          });
-          // Add current one
-          bonusCount++;
-          
-          if (bonusCount >= 10) {
-              const ach = ACHIEVEMENTS.find(a => a.id === 'HELPER_10');
-              if (ach) {
-                  setUnlockedAchievements(prev => [...prev, 'HELPER_10']);
-                  setNewUnlocked(ach);
-                  speak(`恭喜！解锁新勋章：${ach.title}`);
-              }
-          }
-      }
-
       if (isPenalty) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
         triggerRainConfetti();
         speak(`哎呀，${task.title}，下次加油哦`);
       } else {
         setShowCelebration({ show: true, points: task.stars, type: 'success' });
-        triggerStarConfetti();
+        triggerRandomCelebration();
         const name = userName || '小朋友';
         speak(`${name}真棒，完成${task.title}`);
       }
@@ -496,7 +635,6 @@ export const useAppLogic = () => {
     }
   };
 
-  // Mystery Box Logic
   const openMysteryBox = () => {
       if (balance < MYSTERY_BOX_COST) {
           showToast('星星不够哦！', 'error');
@@ -505,7 +643,6 @@ export const useAppLogic = () => {
 
       updateBalance(-MYSTERY_BOX_COST, '开启神秘盲盒');
       
-      // Select Reward Weighted
       const totalWeight = MYSTERY_BOX_REWARDS.reduce((acc, r) => acc + r.weight, 0);
       let random = Math.random() * totalWeight;
       let selected = MYSTERY_BOX_REWARDS[0];
@@ -525,7 +662,6 @@ export const useAppLogic = () => {
       setMysteryReward(selected);
   };
 
-  // Wishlist Actions
   const depositToWishlist = (goal: WishlistGoal, amount: number) => {
       if (balance < amount) {
           showToast('星星不够哦！', 'error');
@@ -541,18 +677,8 @@ export const useAppLogic = () => {
               const newSaved = g.currentSaved + amount;
               const isCompleted = newSaved >= g.targetCost;
               if (isCompleted) {
-                   // Goal Reached!
                    speak(`太棒了！心愿 ${g.title} 达成！`);
-                   safeConfetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
-                   
-                   // Check Achievement
-                   if (!unlockedAchievements.includes('WISHLIST_1')) {
-                        const ach = ACHIEVEMENTS.find(a => a.id === 'WISHLIST_1');
-                        if (ach) {
-                             setUnlockedAchievements(prev => [...prev, 'WISHLIST_1']);
-                             setNewUnlocked(ach);
-                        }
-                   }
+                   triggerFireworks();
               }
               return { ...g, currentSaved: newSaved };
           }
@@ -569,58 +695,11 @@ export const useAppLogic = () => {
 
   const deleteWishlistGoal = (id: string) => {
       const goal = wishlist.find(g => g.id === id);
-      // Refund logic
       if (goal && goal.currentSaved > 0) {
           updateBalance(goal.currentSaved, `退回心愿存款: ${goal.title}`);
           showToast(`退回了 ${goal.currentSaved} 颗星星`, 'info');
       }
       setWishlist(wishlist.filter(g => g.id !== id));
-  };
-
-  // Avatar Actions (Retained logic but UI hidden)
-  const buyAvatarItem = (item: AvatarItem) => {
-      if (balance < item.cost) {
-          showToast('星星不够哦！再做点任务吧。', 'error');
-          return;
-      }
-      if (avatar.ownedItems.includes(item.id)) {
-          equipAvatarItem(item);
-          return;
-      }
-
-      updateBalance(-item.cost, `购买装扮: ${item.name}`);
-      
-      setAvatar(prev => ({
-          ...prev,
-          ownedItems: [...prev.ownedItems, item.id],
-          config: {
-              ...prev.config,
-              [item.type]: item.id
-          }
-      }));
-      
-      safeConfetti({
-          particleCount: 80, spread: 60, origin: { y: 0.5 },
-          colors: ['#F472B6', '#3B82F6', '#FCD34D']
-      });
-      showToast('购买成功！太漂亮了！', 'success');
-      speak('新衣服真好看');
-  };
-
-  const equipAvatarItem = (item: AvatarItem) => {
-    if (avatar.config[item.type] === item.id) {
-        if (item.type !== 'body' && item.type !== 'skin') {
-             setAvatar(prev => ({
-                ...prev,
-                config: { ...prev.config, [item.type]: undefined }
-            }));
-        }
-    } else {
-        setAvatar(prev => ({
-            ...prev,
-            config: { ...prev.config, [item.type]: item.id }
-        }));
-    }
   };
 
   const createFamily = () => {
@@ -711,7 +790,7 @@ export const useAppLogic = () => {
   return {
     state: {
       activeTab, currentDate, userName, themeKey, familyId,
-      tasks, rewards, wishlist, logs, balance, transactions, avatar,
+      tasks, rewards, wishlist, logs, balance, transactions,
       lifetimeEarnings, unlockedAchievements, streak,
       syncStatus, isInteractionBlocked, showCelebration, newUnlocked,
       dateKey: getDateKey(currentDate),
@@ -724,7 +803,6 @@ export const useAppLogic = () => {
       setTasks, setRewards, setWishlist,
       toggleTask, redeemReward, depositToWishlist, addWishlistGoal, deleteWishlistGoal,
       openMysteryBox, setMysteryReward,
-      buyAvatarItem, equipAvatarItem,
       createFamily, manualSaveAll, handleCloudLoad, handleStartAdventure, handleJoinFamily, resetData,
       setShowCelebration, setNewUnlocked,
       showToast, hideToast,

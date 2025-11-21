@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS wishlist_goals (
     PRIMARY KEY (family_id, id)
 );
 
--- [MIGRATIONS] 如果您是更新用户，请手动运行以下命令（如果字段已存在会报错，可忽略）：
+-- [MIGRATIONS] 
+-- 如果您的数据库中缺少新字段，请在 D1 Console 中运行以下语句：
 -- ALTER TABLE settings ADD COLUMN lifetime_earned INTEGER DEFAULT 0;
 -- ALTER TABLE settings ADD COLUMN achievements_data TEXT;

@@ -76,7 +76,7 @@ export interface Achievement {
   title: string;
   description: string;
   icon: string;
-  conditionType: 'lifetime_stars' | 'streak' | 'category_count' | 'wishlist_complete';
+  conditionType: 'lifetime_stars' | 'streak' | 'category_count' | 'wishlist_complete' | 'balance_level' | 'redemption_count' | 'mystery_box_count' | 'avatar_count';
   threshold: number;
   categoryFilter?: TaskCategory;
 }
