@@ -29,7 +29,7 @@ export const AUDIO_RESOURCES = {
     // 'https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.m4a', // Short error
   ],
   UNLOCK: [
-    '/audio/unbelievable.mp3', // 本地升级音效
+    '/audio/up.mp3', // 本地升级音效
     // 'https://assets.mixkit.co/active_storage/sfx/2020/2020-preview.m4a', // Level up
   ],
 }
