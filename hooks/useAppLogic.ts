@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
-import { INITIAL_TASKS, INITIAL_REWARDS, AVATAR_ITEMS } from '../constants';
-import { Task, Reward, TaskCategory, Transaction, AppState, AvatarState, AvatarItem, WishlistGoal } from '../types';
+import { INITIAL_TASKS, INITIAL_REWARDS, ACHIEVEMENTS, MYSTERY_BOX_COST, MYSTERY_BOX_REWARDS } from '../constants';
+import { Task, Reward, TaskCategory, Transaction, AppState, AvatarState, AvatarItem, WishlistGoal, Achievement } from '../types';
 import { ThemeKey } from '../styles/themes';
 import { cloudService, DataScope } from '../services/cloud';
 import { ToastType } from '../components/Toast';
@@ -53,11 +54,21 @@ export const useAppLogic = () => {
       };
   });
 
+  // New Stats State
+  const [lifetimeEarnings, setLifetimeEarnings] = useState<number>(() => {
+      const saved = localStorage.getItem('app_lifetime');
+      return saved ? parseInt(saved) : 0;
+  });
+
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>(() => {
+      const saved = localStorage.getItem('app_achievements');
+      return saved ? JSON.parse(saved) : [];
+  });
+
   // --- Cloud Sync State ---
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
   const [isSyncReady, setIsSyncReady] = useState(false);
   const [isInteractionBlocked, setIsInteractionBlocked] = useState(false);
-  // Initialize isLoading to true if there is a familyId (data to load), otherwise false
   const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('app_family_id'));
 
   // --- Celebration State ---
@@ -66,6 +77,12 @@ export const useAppLogic = () => {
     points: 0, 
     type: 'success' 
   });
+
+  // New Achievement Celebration
+  const [newUnlocked, setNewUnlocked] = useState<Achievement | null>(null);
+  
+  // Mystery Box State
+  const [mysteryReward, setMysteryReward] = useState<{ title: string, icon: string, bonusStars?: number } | null>(null);
 
   // --- Toast State ---
   const [toast, setToast] = useState<{ show: boolean; message: string; type: ToastType }>({
@@ -85,8 +102,44 @@ export const useAppLogic = () => {
   useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
   useEffect(() => localStorage.setItem('app_avatar', JSON.stringify(avatar)), [avatar]);
   useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
+  useEffect(() => localStorage.setItem('app_lifetime', lifetimeEarnings.toString()), [lifetimeEarnings]);
+  useEffect(() => localStorage.setItem('app_achievements', JSON.stringify(unlockedAchievements)), [unlockedAchievements]);
 
-  // --- Helper Logic ---
+  // --- Helpers ---
+  const getDateKey = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper: Calculate Streak
+  const streak = useMemo(() => {
+    let currentStreak = 0;
+    // Start from yesterday to check history, or today if completed today
+    const todayKey = getDateKey(new Date());
+    
+    // Check today
+    if (logs[todayKey] && logs[todayKey].length > 0) {
+        currentStreak++;
+    }
+
+    // Check backwards
+    let d = new Date();
+    d.setDate(d.getDate() - 1); // Start with yesterday
+    
+    while (true) {
+        const k = getDateKey(d);
+        if (logs[k] && logs[k].length > 0) {
+            currentStreak++;
+            d.setDate(d.getDate() - 1);
+        } else {
+            break;
+        }
+    }
+    return currentStreak;
+  }, [logs]);
+
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
     setToast({ show: true, message, type });
   }, []);
@@ -94,6 +147,44 @@ export const useAppLogic = () => {
   const hideToast = useCallback(() => {
     setToast(prev => ({ ...prev, show: false }));
   }, []);
+
+  // Check Achievements Logic
+  const checkAchievements = (currentLifetime: number, currentWishlist: WishlistGoal[], currentStreak: number) => {
+      const newUnlocks: string[] = [];
+
+      ACHIEVEMENTS.forEach(ach => {
+          if (unlockedAchievements.includes(ach.id)) return;
+
+          let unlocked = false;
+          if (ach.conditionType === 'lifetime_stars') {
+              if (currentLifetime >= ach.threshold) unlocked = true;
+          } else if (ach.conditionType === 'streak') {
+              if (currentStreak >= ach.threshold) unlocked = true;
+          } else if (ach.conditionType === 'category_count') {
+              // Count occurrences in logs (expensive, maybe optimize later or only check on task toggle)
+              // For now, let's do a rough check or rely on specific action triggers
+          } else if (ach.conditionType === 'wishlist_complete') {
+             // Handled in deposit
+          }
+          
+          if (unlocked) {
+              newUnlocks.push(ach.id);
+              setNewUnlocked(ach);
+              speak(`恭喜！解锁新勋章：${ach.title}`);
+              safeConfetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+          }
+      });
+
+      if (newUnlocks.length > 0) {
+          setUnlockedAchievements(prev => [...prev, ...newUnlocks]);
+      }
+  };
+
+  // Watch for Streak Achievements
+  useEffect(() => {
+      checkAchievements(lifetimeEarnings, wishlist, streak);
+  }, [streak, lifetimeEarnings]);
+
 
   // Ensure voices are loaded
   useEffect(() => {
@@ -115,12 +206,12 @@ export const useAppLogic = () => {
     if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
     }
-    window.speechSynthesis.cancel(); // Stop previous
+    window.speechSynthesis.cancel(); 
     
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'zh-CN';
     utterance.rate = 1;
-    utterance.pitch = 1.1; // Slightly higher pitch for kid-friendly tone
+    utterance.pitch = 1.1; 
     
     const voices = window.speechSynthesis.getVoices();
     const zhVoice = voices.find(v => v.lang.includes('zh'));
@@ -164,6 +255,8 @@ export const useAppLogic = () => {
         if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
         if (data.userName) setUserName(data.userName);
         if (data.avatar) setAvatar(data.avatar);
+        if (data.lifetimeEarnings !== undefined) setLifetimeEarnings(data.lifetimeEarnings);
+        if (data.unlockedAchievements) setUnlockedAchievements(data.unlockedAchievements);
         
         setSyncStatus('saved');
         setTimeout(() => setIsSyncReady(true), 50);
@@ -218,12 +311,11 @@ export const useAppLogic = () => {
             setIsLoading(true);
             let scope = 'all';
             if (activeTab === 'daily') scope = 'daily';
-            if (activeTab === 'store') scope = 'store'; // Store includes wishlist
+            if (activeTab === 'store') scope = 'store';
             if (activeTab === 'calendar') scope = 'calendar';
             if (activeTab === 'settings') scope = 'settings';
-            if (activeTab === 'stats') scope = 'daily'; 
+            if (activeTab === 'stats') scope = 'activity'; // Stats needs logs and lifetime
             
-            // Keep silent=true to avoid confetti/toast spam, but use isLoading to show spinner
             await handleCloudLoad(familyId, true, scope);
             setIsLoading(false);
         };
@@ -250,24 +342,18 @@ export const useAppLogic = () => {
     return () => clearTimeout(t);
   }, [wishlist, familyId]);
 
+  // Unified Activity Save (Logs, Balance, Tx, Stats)
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
-    const t = setTimeout(() => syncData('activity', { logs, balance, transactions }, true), 500);
+    const t = setTimeout(() => syncData('activity', { logs, balance, transactions, lifetimeEarnings, unlockedAchievements }, true), 500);
     return () => clearTimeout(t);
-  }, [logs, balance, transactions, familyId]);
+  }, [logs, balance, transactions, lifetimeEarnings, unlockedAchievements, familyId]);
 
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
     const t = setTimeout(() => syncData('settings', { userName, themeKey }, true), 1500);
     return () => clearTimeout(t);
   }, [userName, themeKey, familyId]);
-
-  const getDateKey = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   const triggerStarConfetti = () => {
     const duration = 1200;
@@ -307,6 +393,11 @@ export const useAppLogic = () => {
 
   const updateBalance = (amount: number, description: string, dateContext?: Date) => {
     setBalance(prev => prev + amount);
+    
+    if (amount > 0 && !description.includes('退回') && !description.includes('撤销')) {
+        setLifetimeEarnings(prev => prev + amount);
+    }
+
     let txDate = new Date();
     if (dateContext) {
         txDate = new Date(dateContext);
@@ -320,7 +411,7 @@ export const useAppLogic = () => {
       date: txDate.toISOString(),
       description,
       amount,
-      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买') || description.includes('存入')) ? 'SPEND' : 'PENALTY'
+      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买') || description.includes('存入') || description.includes('盲盒')) ? 'SPEND' : 'PENALTY'
     };
     setTransactions(prev => [newTx, ...prev]);
   };
@@ -336,6 +427,10 @@ export const useAppLogic = () => {
       // Undo
       newLog = currentLog.filter(id => id !== task.id);
       updateBalance(-task.stars, `撤销: ${task.title}`, currentDate);
+      // Undo lifetime change if it was a positive task
+      if (task.stars > 0) {
+          setLifetimeEarnings(prev => Math.max(0, prev - task.stars));
+      }
     } else {
       // Complete
       setIsInteractionBlocked(true);
@@ -345,6 +440,28 @@ export const useAppLogic = () => {
       const prefix = isPenalty ? '扣分' : '完成';
       updateBalance(task.stars, `${prefix}: ${task.title}`, currentDate);
       
+      // Check Category Count Achievements (Simple inline check)
+      if (!isPenalty && !unlockedAchievements.includes('HELPER_10') && task.category === TaskCategory.BONUS) {
+          let bonusCount = 0;
+          Object.values(logs).forEach(dayLog => {
+               dayLog.forEach(tid => {
+                   const t = tasks.find(tt => tt.id === tid);
+                   if (t && t.category === TaskCategory.BONUS) bonusCount++;
+               });
+          });
+          // Add current one
+          bonusCount++;
+          
+          if (bonusCount >= 10) {
+              const ach = ACHIEVEMENTS.find(a => a.id === 'HELPER_10');
+              if (ach) {
+                  setUnlockedAchievements(prev => [...prev, 'HELPER_10']);
+                  setNewUnlocked(ach);
+                  speak(`恭喜！解锁新勋章：${ach.title}`);
+              }
+          }
+      }
+
       if (isPenalty) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
         triggerRainConfetti();
@@ -379,6 +496,35 @@ export const useAppLogic = () => {
     }
   };
 
+  // Mystery Box Logic
+  const openMysteryBox = () => {
+      if (balance < MYSTERY_BOX_COST) {
+          showToast('星星不够哦！', 'error');
+          return;
+      }
+
+      updateBalance(-MYSTERY_BOX_COST, '开启神秘盲盒');
+      
+      // Select Reward Weighted
+      const totalWeight = MYSTERY_BOX_REWARDS.reduce((acc, r) => acc + r.weight, 0);
+      let random = Math.random() * totalWeight;
+      let selected = MYSTERY_BOX_REWARDS[0];
+      
+      for (const r of MYSTERY_BOX_REWARDS) {
+          if (random < r.weight) {
+              selected = r;
+              break;
+          }
+          random -= r.weight;
+      }
+
+      if (selected.bonusStars) {
+          updateBalance(selected.bonusStars, '盲盒大奖');
+      }
+
+      setMysteryReward(selected);
+  };
+
   // Wishlist Actions
   const depositToWishlist = (goal: WishlistGoal, amount: number) => {
       if (balance < amount) {
@@ -398,6 +544,15 @@ export const useAppLogic = () => {
                    // Goal Reached!
                    speak(`太棒了！心愿 ${g.title} 达成！`);
                    safeConfetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
+                   
+                   // Check Achievement
+                   if (!unlockedAchievements.includes('WISHLIST_1')) {
+                        const ach = ACHIEVEMENTS.find(a => a.id === 'WISHLIST_1');
+                        if (ach) {
+                             setUnlockedAchievements(prev => [...prev, 'WISHLIST_1']);
+                             setNewUnlocked(ach);
+                        }
+                   }
               }
               return { ...g, currentSaved: newSaved };
           }
@@ -488,7 +643,7 @@ export const useAppLogic = () => {
         await cloudService.saveData(fid, 'tasks', tasks);
         await cloudService.saveData(fid, 'rewards', rewards);
         await cloudService.saveData(fid, 'wishlist', wishlist);
-        await cloudService.saveData(fid, 'activity', { logs, balance, transactions });
+        await cloudService.saveData(fid, 'activity', { logs, balance, transactions, lifetimeEarnings, unlockedAchievements });
         
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);
@@ -504,27 +659,21 @@ export const useAppLogic = () => {
     setIsLoading(true);
     const newId = cloudService.generateFamilyId();
     
-    // Update local state immediately to prevent auto-save race condition
     setUserName(name);
     setFamilyId(newId);
-    
-    // Ensure auto-sync is NOT ready yet, so useEffects triggered by familyId change don't fire double saves
     setIsSyncReady(false);
     
     try {
-        // Manually save all initial data to cloud (Await to ensure completion)
         await Promise.all([
             cloudService.saveData(newId, 'settings', { userName: name, themeKey: 'lemon' }),
             cloudService.saveData(newId, 'tasks', INITIAL_TASKS),
             cloudService.saveData(newId, 'rewards', INITIAL_REWARDS),
             cloudService.saveData(newId, 'wishlist', []),
-            cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] })
+            cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [], lifetimeEarnings: 0, unlockedAchievements: [] })
         ]);
 
         triggerStarConfetti();
         showToast(`欢迎你，${name}！`, 'success');
-        
-        // Now enable auto-sync
         setIsSyncReady(true);
     } catch (error) {
         console.error("Start adventure save failed", error);
@@ -563,18 +712,21 @@ export const useAppLogic = () => {
     state: {
       activeTab, currentDate, userName, themeKey, familyId,
       tasks, rewards, wishlist, logs, balance, transactions, avatar,
-      syncStatus, isInteractionBlocked, showCelebration,
+      lifetimeEarnings, unlockedAchievements, streak,
+      syncStatus, isInteractionBlocked, showCelebration, newUnlocked,
       dateKey: getDateKey(currentDate),
       toast,
-      isLoading
+      isLoading,
+      mysteryReward
     },
     actions: {
       setActiveTab, setCurrentDate, setUserName, setThemeKey, setFamilyId,
       setTasks, setRewards, setWishlist,
       toggleTask, redeemReward, depositToWishlist, addWishlistGoal, deleteWishlistGoal,
+      openMysteryBox, setMysteryReward,
       buyAvatarItem, equipAvatarItem,
       createFamily, manualSaveAll, handleCloudLoad, handleStartAdventure, handleJoinFamily, resetData,
-      setShowCelebration,
+      setShowCelebration, setNewUnlocked,
       showToast, hideToast,
     }
   };

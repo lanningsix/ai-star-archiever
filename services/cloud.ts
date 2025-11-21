@@ -12,6 +12,9 @@ export interface CloudData {
   themeKey: string;
   userName: string;
   lastUpdated?: number;
+  // New Stats
+  lifetimeEarnings?: number;
+  unlockedAchievements?: string[];
 }
 
 export type DataScope = 'tasks' | 'rewards' | 'wishlist' | 'settings' | 'activity' | 'avatar';

@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
-import { BarChart2, PieChart, TrendingUp, Award, Zap, ShoppingBag, ArrowDown, ArrowUp } from 'lucide-react';
+import { BarChart2, PieChart, TrendingUp, Award, Zap, ShoppingBag, ArrowDown, ArrowUp, Lock, Trophy } from 'lucide-react';
 import { Task, TaskCategory, Transaction } from '../../types';
 import { Theme } from '../../styles/themes';
-import { CATEGORY_STYLES } from '../../constants';
+import { CATEGORY_STYLES, ACHIEVEMENTS } from '../../constants';
 
 interface StatsViewProps {
   tasks: Task[];
@@ -11,11 +11,12 @@ interface StatsViewProps {
   transactions: Transaction[];
   currentDate: Date;
   theme: Theme;
+  unlockedAchievements?: string[];
 }
 
 type TimeRange = 'day' | 'week' | 'month';
 
-export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions, currentDate, theme }) => {
+export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions, currentDate, theme, unlockedAchievements = [] }) => {
   const [range, setRange] = useState<TimeRange>('week');
 
   // Helper: Start of Week (Monday)
@@ -171,8 +172,8 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
   }, [range, currentDate, transactions, tasks]);
 
   return (
-    <div className="py-4 pb-24 animate-slide-up">
-      <div className="px-4 mb-4 flex items-center justify-between">
+    <div className="py-4 pb-24 animate-slide-up space-y-6">
+      <div className="px-4 flex items-center justify-between">
           <h2 className={`text-xl font-cute flex items-center ${theme.accent}`}>
               <span className={`${theme.light} p-2 rounded-xl mr-3 shadow-sm -rotate-3`}><PieChart className={`w-5 h-5 ${theme.accent}`} /></span>
               统计分析
@@ -191,8 +192,46 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
           </div>
       </div>
 
+      {/* Achievement Section */}
+      <div className="px-2">
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] p-5 text-white shadow-md relative overflow-hidden">
+               {/* Decor */}
+               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-10 -mb-10 blur-xl"></div>
+               
+               <h3 className="flex items-center gap-2 font-cute text-lg mb-4 relative z-10">
+                   <Trophy size={20} className="text-yellow-300" /> 荣誉勋章墙
+               </h3>
+               
+               <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 relative z-10">
+                   {ACHIEVEMENTS.map(ach => {
+                       const isUnlocked = unlockedAchievements.includes(ach.id);
+                       return (
+                           <div 
+                                key={ach.id} 
+                                className={`
+                                    flex flex-col items-center justify-center p-2 rounded-xl transition-all
+                                    ${isUnlocked ? 'bg-white/20 backdrop-blur-sm shadow-sm' : 'bg-black/20 opacity-60 grayscale'}
+                                `}
+                           >
+                               <div className={`text-3xl mb-1 ${isUnlocked ? 'animate-pop' : ''}`}>
+                                   {isUnlocked ? ach.icon : <Lock size={24} className="text-white/30 p-1"/>}
+                               </div>
+                               <div className="text-[9px] font-bold text-center leading-tight opacity-90">
+                                   {ach.title}
+                               </div>
+                           </div>
+                       );
+                   })}
+               </div>
+               <div className="mt-3 text-right text-xs font-bold text-white/60">
+                   已收集 {unlockedAchievements.length} / {ACHIEVEMENTS.length}
+               </div>
+          </div>
+      </div>
+
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-2 px-3 mb-6">
+      <div className="grid grid-cols-3 gap-2 px-3">
           <div className="bg-lime-50 p-3 rounded-[1.5rem] border border-lime-200 shadow-sm flex flex-col items-center justify-center relative overflow-hidden">
               <div className="absolute -right-2 -bottom-2 opacity-10"><ArrowUp size={40} /></div>
               <span className="text-lime-700 text-[10px] font-bold uppercase flex items-center gap-1 z-10"><Award size={12}/> 获得</span>
@@ -211,7 +250,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
       </div>
 
       {/* Multi-Bar Trend Chart */}
-      <div className="bg-white rounded-[2rem] p-5 mx-3 mb-6 shadow-sm border border-slate-100">
+      <div className="bg-white rounded-[2rem] p-5 mx-3 shadow-sm border border-slate-100">
          <div className="flex justify-between items-center mb-6">
             <h3 className="text-slate-400 text-xs font-bold uppercase flex items-center gap-2">
                 <TrendingUp size={14} /> 趋势图表

@@ -1,19 +1,20 @@
+
 -- 1. Settings Table (存储家庭设置)
-DROP TABLE IF EXISTS settings;
-CREATE TABLE settings (
+CREATE TABLE IF NOT EXISTS settings (
     family_id TEXT PRIMARY KEY,
     user_name TEXT,
     theme_key TEXT,
     balance INTEGER DEFAULT 0,
     pet_data TEXT,
     avatar_data TEXT,
+    lifetime_earned INTEGER DEFAULT 0,
+    achievements_data TEXT,
     created_at INTEGER,
     updated_at INTEGER
 );
 
 -- 2. Tasks Table (存储任务列表)
-DROP TABLE IF EXISTS tasks;
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     id TEXT,
     family_id TEXT,
     title TEXT,
@@ -24,8 +25,7 @@ CREATE TABLE tasks (
 );
 
 -- 3. Rewards Table (存储奖励列表)
-DROP TABLE IF EXISTS rewards;
-CREATE TABLE rewards (
+CREATE TABLE IF NOT EXISTS rewards (
     id TEXT,
     family_id TEXT,
     title TEXT,
@@ -36,8 +36,7 @@ CREATE TABLE rewards (
 );
 
 -- 4. Task Logs Table (存储每日打卡记录)
-DROP TABLE IF EXISTS task_logs;
-CREATE TABLE task_logs (
+CREATE TABLE IF NOT EXISTS task_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     family_id TEXT,
     date_key TEXT,
@@ -48,8 +47,7 @@ CREATE TABLE task_logs (
 CREATE INDEX IF NOT EXISTS idx_logs_family_date ON task_logs(family_id, date_key);
 
 -- 5. Transactions Table (存储积分流水)
-DROP TABLE IF EXISTS transactions;
-CREATE TABLE transactions (
+CREATE TABLE IF NOT EXISTS transactions (
     id TEXT,
     family_id TEXT,
     date TEXT,
@@ -61,8 +59,7 @@ CREATE TABLE transactions (
 );
 
 -- 6. Wishlist Table (存储心愿单)
-DROP TABLE IF EXISTS wishlist_goals;
-CREATE TABLE wishlist_goals (
+CREATE TABLE IF NOT EXISTS wishlist_goals (
     id TEXT,
     family_id TEXT,
     title TEXT,
@@ -72,3 +69,7 @@ CREATE TABLE wishlist_goals (
     updated_at INTEGER,
     PRIMARY KEY (family_id, id)
 );
+
+-- [MIGRATIONS] 如果您是更新用户，请手动运行以下命令（如果字段已存在会报错，可忽略）：
+-- ALTER TABLE settings ADD COLUMN lifetime_earned INTEGER DEFAULT 0;
+-- ALTER TABLE settings ADD COLUMN achievements_data TEXT;

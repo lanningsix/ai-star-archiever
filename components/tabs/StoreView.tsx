@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { ShoppingBag, Star, Check, AlertCircle, Plus, Trash2, PiggyBank, TrendingUp } from 'lucide-react';
+import { ShoppingBag, Star, Check, AlertCircle, Plus, Trash2, PiggyBank, TrendingUp, Gift } from 'lucide-react';
 import { Reward, WishlistGoal } from '../../types';
 import { Theme } from '../../styles/themes';
+import { MYSTERY_BOX_COST } from '../../constants';
 
 interface StoreViewProps {
   rewards: Reward[];
@@ -14,33 +15,44 @@ interface StoreViewProps {
   onAddGoal?: () => void;
   onDeleteGoal?: (id: string) => void;
   onDeposit?: (goal: WishlistGoal, amount: number) => void;
+  // Mystery Box Props
+  onOpenMysteryBox?: () => void;
 }
 
-export const StoreView: React.FC<StoreViewProps> = ({ rewards, balance, onRedeem, theme, wishlist = [], onAddGoal, onDeleteGoal, onDeposit }) => {
+export const StoreView: React.FC<StoreViewProps> = ({ rewards, balance, onRedeem, theme, wishlist = [], onAddGoal, onDeleteGoal, onDeposit, onOpenMysteryBox }) => {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [depositInputId, setDepositInputId] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState<string>('10');
+  const [isBoxConfirming, setIsBoxConfirming] = useState(false);
 
   const handleClick = (reward: Reward) => {
     if (balance < reward.cost) return;
 
     if (confirmId === reward.id) {
-        // Execute redemption
         onRedeem(reward);
         setConfirmId(null);
     } else {
-        // Enter confirmation state
         setConfirmId(reward.id);
-        // Auto-reset after 3 seconds
         setTimeout(() => {
             setConfirmId(prev => prev === reward.id ? null : prev);
         }, 3000);
     }
   };
 
+  const handleMysteryBoxClick = () => {
+      if (balance < MYSTERY_BOX_COST) return;
+      
+      if (isBoxConfirming && onOpenMysteryBox) {
+          onOpenMysteryBox();
+          setIsBoxConfirming(false);
+      } else {
+          setIsBoxConfirming(true);
+          setTimeout(() => setIsBoxConfirming(false), 3000);
+      }
+  };
+
   const handleDepositClick = (goal: WishlistGoal) => {
       if (depositInputId === goal.id) {
-          // Execute Deposit
           const amount = parseInt(depositAmount);
           if (amount > 0 && onDeposit) {
               onDeposit(goal, amount);
@@ -48,13 +60,40 @@ export const StoreView: React.FC<StoreViewProps> = ({ rewards, balance, onRedeem
               setDepositAmount('10');
           }
       } else {
-          // Open Input
           setDepositInputId(goal.id);
       }
   };
 
   return (
     <div className="py-4 animate-slide-up pb-24 space-y-8">
+
+      {/* Mystery Box Banner */}
+      <div className="px-4">
+          <div 
+            onClick={handleMysteryBoxClick}
+            className={`
+                relative overflow-hidden rounded-[2rem] p-6 cursor-pointer transition-all duration-300 shadow-lg
+                ${isBoxConfirming ? 'ring-4 ring-yellow-300 scale-[1.02]' : 'hover:scale-[1.01] hover:shadow-xl'}
+            `}
+            style={{ background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' }}
+          >
+              {/* Background Sparkles */}
+              <div className="absolute top-0 left-0 w-full h-full opacity-20" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+              
+              <div className="relative z-10 flex items-center justify-between text-white">
+                  <div>
+                      <h3 className="font-cute text-2xl text-yellow-300 mb-1 flex items-center gap-2">
+                          <Gift className="animate-bounce" /> 神秘盲盒
+                      </h3>
+                      <p className="text-white/80 text-xs font-bold mb-3">不知道会抽到什么惊喜呢？</p>
+                      <div className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full font-bold text-sm ${balance >= MYSTERY_BOX_COST ? 'bg-white/20 text-white' : 'bg-black/20 text-white/50'}`}>
+                          {isBoxConfirming ? '再点一次开启' : `开启花费 ${MYSTERY_BOX_COST}`} <Star size={12} fill="currentColor"/>
+                      </div>
+                  </div>
+                  <div className="text-7xl animate-pulse filter drop-shadow-md">🎁</div>
+              </div>
+          </div>
+      </div>
       
       {/* Wishlist Section */}
       <div className="px-2">

@@ -70,6 +70,17 @@ export interface AvatarState {
   ownedItems: string[];
 }
 
+// Achievements
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  conditionType: 'lifetime_stars' | 'streak' | 'category_count' | 'wishlist_complete';
+  threshold: number;
+  categoryFilter?: TaskCategory;
+}
+
 export interface AppState {
   tasks: Task[];
   rewards: Reward[];
@@ -78,4 +89,7 @@ export interface AppState {
   balance: number;
   transactions: Transaction[];
   avatar: AvatarState;
+  // New Stats
+  lifetimeEarnings: number;
+  unlockedAchievements: string[];
 }

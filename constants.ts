@@ -1,5 +1,6 @@
 
-import { Task, TaskCategory, Reward, AvatarItem } from './types';
+
+import { Task, TaskCategory, Reward, AvatarItem, Achievement } from './types';
 
 // [CLOUDFLARE CONFIG]
 // Cloudflare Worker 后端地址
@@ -45,6 +46,19 @@ export const INITIAL_REWARDS: Reward[] = [
   { id: 'r5', title: '免做家务一次', cost: 40, icon: '🧹' },
 ];
 
+export const MYSTERY_BOX_COST = 50;
+export const MYSTERY_BOX_REWARDS: { title: string, icon: string, weight: number, bonusStars?: number }[] = [
+    { title: '免做家务券', icon: '🎟️', weight: 10 },
+    { title: '决定今天晚餐吃什么', icon: '🍔', weight: 15 },
+    { title: '爸爸学小狗叫', icon: '🐶', weight: 10 },
+    { title: '再讲一个故事', icon: '📖', weight: 20 },
+    { title: '举高高一次', icon: '🚀', weight: 20 },
+    { title: '什么都没有...', icon: '💨', weight: 5 },
+    { title: '幸运大奖：100星星', icon: '💎', weight: 5, bonusStars: 100 },
+    { title: '看一场电影', icon: '🎬', weight: 5 },
+    { title: '全家一起玩游戏', icon: '🎮', weight: 10 },
+];
+
 export const COMMON_EMOJIS = [
   '📺', '🎮', '🍦', '🍬', '🍟', '🍟', 
   '🎡', '🪁', '🧸', '⚽', '🛹', '🎨',
@@ -59,6 +73,58 @@ export const CATEGORY_STYLES = {
     [TaskCategory.BONUS]: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', iconBg: 'bg-amber-400', accent: 'text-amber-500' },
     [TaskCategory.PENALTY]: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', iconBg: 'bg-rose-400', accent: 'text-rose-500' },
 };
+
+export const ACHIEVEMENTS: Achievement[] = [
+    {
+        id: 'FIRST_STEP',
+        title: '第一步',
+        description: '累计获得 10 颗星星',
+        icon: '🌱',
+        conditionType: 'lifetime_stars',
+        threshold: 10
+    },
+    {
+        id: 'STREAK_3',
+        title: '习惯养成',
+        description: '连续打卡 3 天',
+        icon: '🔥',
+        conditionType: 'streak',
+        threshold: 3
+    },
+    {
+        id: 'RICH_KID',
+        title: '小小富翁',
+        description: '累计获得 500 颗星星',
+        icon: '💰',
+        conditionType: 'lifetime_stars',
+        threshold: 500
+    },
+    {
+        id: 'HELPER_10',
+        title: '家务小能手',
+        description: '完成 10 次加分项任务',
+        icon: '🧹',
+        conditionType: 'category_count',
+        threshold: 10,
+        categoryFilter: TaskCategory.BONUS
+    },
+    {
+        id: 'STREAK_7',
+        title: '坚持不懈',
+        description: '连续打卡 7 天',
+        icon: '🚀',
+        conditionType: 'streak',
+        threshold: 7
+    },
+    {
+        id: 'WISHLIST_1',
+        title: '梦想成真',
+        description: '达成 1 个心愿',
+        icon: '🌠',
+        conditionType: 'wishlist_complete',
+        threshold: 1
+    }
+];
 
 // --- Avatar Items ---
 

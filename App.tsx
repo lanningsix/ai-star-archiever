@@ -21,6 +21,8 @@ import { RewardModal } from './components/modals/RewardModal';
 import { ConfirmModal } from './components/modals/ConfirmModal';
 import { ParentalGateModal } from './components/modals/ParentalGateModal';
 import { WishlistModal } from './components/modals/WishlistModal';
+import { AchievementModal } from './components/modals/AchievementModal';
+import { MysteryBoxModal } from './components/modals/MysteryBoxModal';
 
 export default function App() {
   const { state, actions } = useAppLogic();
@@ -82,6 +84,19 @@ export default function App() {
 
       <CelebrationOverlay isVisible={state.showCelebration.show} points={state.showCelebration.points} type={state.showCelebration.type} />
       
+      {/* Achievement Modal */}
+      <AchievementModal 
+        achievement={state.newUnlocked} 
+        onClose={() => actions.setNewUnlocked(null)} 
+      />
+
+      {/* Mystery Box Modal */}
+      <MysteryBoxModal 
+        isOpen={!!state.mysteryReward}
+        reward={state.mysteryReward}
+        onClose={() => actions.setMysteryReward(null)}
+      />
+
       {/* Global Confirm Modal */}
       <ConfirmModal 
          isOpen={confirmState.isOpen}
@@ -102,7 +117,7 @@ export default function App() {
           }}
       />
 
-      <Header balance={state.balance} userName={state.userName} themeKey={state.themeKey} />
+      <Header balance={state.balance} userName={state.userName} themeKey={state.themeKey} streak={state.streak} />
 
       <div className="max-w-5xl mx-auto pt-2 px-4 md:px-6">
         
@@ -126,6 +141,7 @@ export default function App() {
                 transactions={state.transactions}
                 currentDate={state.currentDate}
                 theme={activeTheme}
+                unlockedAchievements={state.unlockedAchievements}
             />
         )}
 
@@ -139,6 +155,7 @@ export default function App() {
                 onAddGoal={() => setIsWishlistModalOpen(true)}
                 onDeleteGoal={(id) => openConfirm("删除心愿", "确定要删除这个心愿吗？已存的星星会退回。", () => actions.deleteWishlistGoal(id))}
                 onDeposit={actions.depositToWishlist}
+                onOpenMysteryBox={actions.openMysteryBox}
             />
         )}
 
