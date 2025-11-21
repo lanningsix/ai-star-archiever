@@ -71,6 +71,8 @@ export const useAppLogic = () => {
 
   // New Achievement Celebration
   const [newUnlocked, setNewUnlocked] = useState<Achievement | null>(null);
+  // Pending Achievement (Wait queue if celebration is active)
+  const [pendingUnlocked, setPendingUnlocked] = useState<Achievement | null>(null);
   
   // Mystery Box State
   const [mysteryReward, setMysteryReward] = useState<{ title: string, icon: string, bonusStars?: number } | null>(null);
@@ -189,6 +191,7 @@ export const useAppLogic = () => {
   // Check Achievements Logic
   const checkAchievements = () => {
       const newUnlocks: string[] = [];
+      let lastUnlockedAch: Achievement | null = null;
 
       ACHIEVEMENTS.forEach(ach => {
           if (unlockedAchievements.includes(ach.id)) return;
@@ -234,16 +237,40 @@ export const useAppLogic = () => {
           
           if (unlocked) {
               newUnlocks.push(ach.id);
-              setNewUnlocked(ach);
-              playRandomSound('unlock'); // Play unlock sound
-              safeConfetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+              lastUnlockedAch = ach;
           }
       });
 
       if (newUnlocks.length > 0) {
           setUnlockedAchievements(prev => [...prev, ...newUnlocks]);
+          
+          // If we have a new unlock, decide whether to show immediately or queue
+          if (lastUnlockedAch) {
+             // If celebration (stars animation) is currently showing, wait.
+             if (showCelebration.show) {
+                 setPendingUnlocked(lastUnlockedAch);
+             } else {
+                 setNewUnlocked(lastUnlockedAch);
+                 playRandomSound('unlock'); 
+                 safeConfetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+             }
+          }
       }
   };
+
+  // Watch for when celebration ends to trigger pending achievement
+  useEffect(() => {
+      if (!showCelebration.show && pendingUnlocked) {
+          // Small delay to ensure visual separation
+          const timer = setTimeout(() => {
+              setNewUnlocked(pendingUnlocked);
+              setPendingUnlocked(null);
+              playRandomSound('unlock');
+              safeConfetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+          }, 500);
+          return () => clearTimeout(timer);
+      }
+  }, [showCelebration.show, pendingUnlocked]);
 
   useEffect(() => {
       const timeout = setTimeout(() => {
