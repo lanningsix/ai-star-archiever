@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { ShoppingBag, Star, Check, AlertCircle, Plus, Trash2, PiggyBank, TrendingUp } from 'lucide-react';
 import { Reward, WishlistGoal } from '../../types';

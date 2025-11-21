@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Circle, CheckCircle2, XCircle, Smile, BrainCircuit, Heart, Zap, TrendingUp, TrendingDown } from 'lucide-react';
 import { Task, TaskCategory, Transaction } from '../../types';
@@ -31,6 +32,7 @@ export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, transactions,
           if (txDate >= startOfDay && txDate <= endOfDay) {
               const amount = tx.amount;
               const isUndo = tx.description.includes('撤销') || tx.description.includes('退回');
+              const absAmount = Math.abs(amount);
               
               if (amount > 0) {
                   // Positive amount (Money in)
@@ -44,11 +46,11 @@ export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, transactions,
               } else {
                   // Negative amount (Money out)
                   if (isUndo) {
-                      // Reversing an earning -> Reduce Earned
-                      earned -= Math.abs(amount);
+                      // Reversing an earning -> Reduce Earned (subtract the absolute value)
+                      earned -= absAmount;
                   } else {
                       // Actual Spend/Penalty
-                      spent += Math.abs(amount);
+                      spent += absAmount;
                   }
               }
           }
