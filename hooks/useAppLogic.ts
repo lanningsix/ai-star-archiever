@@ -28,7 +28,7 @@ export const useAppLogic = () => {
 
   const [logs, setLogs] = useState<Record<string, string[]>>(() => {
     const saved = localStorage.getItem('app_logs');
-    return saved ? JSON.parse(saved) : {};
+    return saved ? JSON.parse(saved) : INITIAL_REWARDS;
   });
 
   const [balance, setBalance] = useState<number>(() => {
@@ -88,16 +88,40 @@ export const useAppLogic = () => {
     setToast(prev => ({ ...prev, show: false }));
   }, []);
 
+  // Ensure voices are loaded
+  useEffect(() => {
+    const loadVoices = () => {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+        }
+    };
+    loadVoices();
+    if (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
   // Text to Speech
   const speak = useCallback((text: string) => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // Stop previous
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = 1;
-        utterance.pitch = 1.1; // Slightly higher pitch for kid-friendly tone
-        window.speechSynthesis.speak(utterance);
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    
+    if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
     }
+    window.speechSynthesis.cancel(); // Stop previous
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'zh-CN';
+    utterance.rate = 1;
+    utterance.pitch = 1.1; // Slightly higher pitch for kid-friendly tone
+    
+    const voices = window.speechSynthesis.getVoices();
+    const zhVoice = voices.find(v => v.lang.includes('zh'));
+    if (zhVoice) {
+        utterance.voice = zhVoice;
+    }
+    
+    window.speechSynthesis.speak(utterance);
   }, []);
 
   // Safe confetti wrapper
@@ -308,12 +332,12 @@ export const useAppLogic = () => {
       if (isPenalty) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
         triggerRainConfetti();
-        speak('下次要加油哦');
+        speak(`哎呀，${task.title}，下次加油哦`);
       } else {
         setShowCelebration({ show: true, points: task.stars, type: 'success' });
         triggerStarConfetti();
         const name = userName || '小朋友';
-        speak(`${name}你太棒了`);
+        speak(`${name}真棒，完成${task.title}`);
       }
     }
     setLogs({ ...logs, [dateKey]: newLog });
@@ -328,12 +352,14 @@ export const useAppLogic = () => {
               colors: ['#FF7EB3', '#7AFCB0', '#7FD8FE']
           });
           showToast(`成功兑换：${reward.title}`, 'success');
+          speak(`兑换成功，${reward.title}`);
       } catch (error) {
           console.error("Redeem error", error);
           showToast(`兑换成功：${reward.title}`, 'success');
       }
     } else {
       showToast(`星星不够哦！还需要 ${reward.cost - balance} 颗星星。`, 'error');
+      speak('星星不够哦');
     }
   };
 
@@ -365,6 +391,7 @@ export const useAppLogic = () => {
           colors: ['#F472B6', '#3B82F6', '#FCD34D']
       });
       showToast('购买成功！太漂亮了！', 'success');
+      speak('新衣服真好看');
   };
 
   const equipAvatarItem = (item: AvatarItem) => {

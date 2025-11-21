@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Settings, User, Edit3, Cloud, RefreshCw, Copy, Upload, Download, Palette, Plus, Trash2, Star } from 'lucide-react';
 import { Theme, ThemeKey, THEMES } from '../../styles/themes';
 import { CATEGORY_STYLES, CLOUD_API_URL } from '../../constants';
-import { Task, Reward } from '../../types';
+import { Task, Reward, TaskCategory } from '../../types';
 import { ToastType } from '../Toast';
 
 interface SettingsViewProps {
@@ -41,6 +41,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         navigator.clipboard.writeText(familyId);
         actions.showToast('家庭ID已复制！', 'success');
     };
+
+    // Sort tasks by category order
+    const sortedTasks = [...tasks].sort((a, b) => {
+        const order = {
+            [TaskCategory.LIFE]: 1,
+            [TaskCategory.BEHAVIOR]: 2,
+            [TaskCategory.BONUS]: 3,
+            [TaskCategory.PENALTY]: 4
+        };
+        const orderA = order[a.category] || 99;
+        const orderB = order[b.category] || 99;
+        
+        return orderA - orderB;
+    });
 
     return (
         <div className="py-4 pb-20 animate-slide-up">
@@ -195,7 +209,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         </button>
                     </div>
                     <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 divide-y divide-slate-50 overflow-hidden">
-                        {tasks.map(t => (
+                        {sortedTasks.map(t => (
                             <div key={t.id} className="p-3.5 flex justify-between items-center hover:bg-slate-50 transition-colors">
                                 <div>
                                     <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold mr-2 align-middle ${CATEGORY_STYLES[t.category].bg} ${CATEGORY_STYLES[t.category].text}`}>
