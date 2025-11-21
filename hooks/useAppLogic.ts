@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS, ACHIEVEMENTS, MYSTERY_BOX_COST, MYSTERY_BOX_REWARDS, AUDIO_RESOURCES } from '../constants';
 import { Task, Reward, TaskCategory, Transaction, WishlistGoal, Achievement } from '../types';
@@ -68,6 +68,12 @@ export const useAppLogic = () => {
     points: 0, 
     type: 'success' 
   });
+  
+  // Keep a ref to access current value in timeouts/intervals
+  const showCelebrationRef = useRef(showCelebration);
+  useEffect(() => {
+    showCelebrationRef.current = showCelebration;
+  }, [showCelebration]);
 
   // New Achievement Celebration
   const [newUnlocked, setNewUnlocked] = useState<Achievement | null>(null);
@@ -247,7 +253,8 @@ export const useAppLogic = () => {
           // If we have a new unlock, decide whether to show immediately or queue
           if (lastUnlockedAch) {
              // If celebration (stars animation) is currently showing, wait.
-             if (showCelebration.show) {
+             // Use REF to check current status because this might run in a closure where state is stale
+             if (showCelebrationRef.current.show) {
                  setPendingUnlocked(lastUnlockedAch);
              } else {
                  setNewUnlocked(lastUnlockedAch);
@@ -267,7 +274,7 @@ export const useAppLogic = () => {
               setPendingUnlocked(null);
               playRandomSound('unlock');
               safeConfetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
-          }, 500);
+          }, 300);
           return () => clearTimeout(timer);
       }
   }, [showCelebration.show, pendingUnlocked]);
