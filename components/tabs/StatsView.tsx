@@ -1,12 +1,9 @@
 
-
-
 import React, { useState, useMemo } from 'react';
 import { BarChart2, PieChart, TrendingUp, Award, Zap, ShoppingBag, ArrowDown, ArrowUp, Lock, Trophy } from 'lucide-react';
 import { Task, TaskCategory, Transaction, Achievement } from '../../types';
 import { Theme } from '../../styles/themes';
 import { CATEGORY_STYLES, ACHIEVEMENTS } from '../../constants';
-import { AchievementModal } from '../modals/AchievementModal';
 
 interface StatsViewProps {
   tasks: Task[];
@@ -15,13 +12,13 @@ interface StatsViewProps {
   currentDate: Date;
   theme: Theme;
   unlockedAchievements?: string[];
+  onViewAchievement: (ach: Achievement) => void;
 }
 
 type TimeRange = 'day' | 'week' | 'month';
 
-export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions, currentDate, theme, unlockedAchievements = [] }) => {
+export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions, currentDate, theme, unlockedAchievements = [], onViewAchievement }) => {
   const [range, setRange] = useState<TimeRange>('week');
-  const [viewAchievement, setViewAchievement] = useState<Achievement | null>(null);
 
   // Helper: Start of Week (Monday)
   const getStartOfWeek = (d: Date) => {
@@ -178,13 +175,6 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
   return (
     <div className="py-4 pb-24 animate-slide-up space-y-6">
       
-      {/* Detail Modal */}
-      <AchievementModal 
-          achievement={viewAchievement} 
-          onClose={() => setViewAchievement(null)} 
-          isLocked={viewAchievement ? !unlockedAchievements.includes(viewAchievement.id) : false}
-      />
-
       <div className="px-4 flex items-center justify-between">
           <h2 className={`text-xl font-cute flex items-center ${theme.accent}`}>
               <span className={`${theme.light} p-2 rounded-xl mr-3 shadow-sm -rotate-3`}><PieChart className={`w-5 h-5 ${theme.accent}`} /></span>
@@ -221,7 +211,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
                        return (
                            <button 
                                 key={ach.id} 
-                                onClick={() => setViewAchievement(ach)}
+                                onClick={() => onViewAchievement(ach)}
                                 className={`
                                     flex flex-col items-center justify-center p-2 rounded-xl transition-all active:scale-95 hover:scale-105
                                     ${isUnlocked ? 'bg-white/20 backdrop-blur-sm shadow-sm' : 'bg-black/20 opacity-60 grayscale hover:opacity-80'}

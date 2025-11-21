@@ -6,6 +6,7 @@ import { NavBar } from './components/NavBar';
 import { useAppLogic } from './hooks/useAppLogic';
 import { THEMES } from './styles/themes';
 import { Toast } from './components/Toast';
+import { Achievement, TaskCategory } from './types';
 
 // Tabs
 import { DailyView } from './components/tabs/DailyView';
@@ -35,6 +36,9 @@ export default function App() {
   const [isNameModalOpen, setIsNameModalOpen] = useState(!localStorage.getItem('app_family_id') && !localStorage.getItem('app_username'));
   const [isParentalLockOpen, setIsParentalLockOpen] = useState(false);
   
+  // Achievement View State (Hosted here to ensure correct z-index context)
+  const [viewAchievement, setViewAchievement] = useState<Achievement | null>(null);
+  
   // Confirmation Modal State
   const [confirmState, setConfirmState] = useState<{
       isOpen: boolean;
@@ -62,6 +66,43 @@ export default function App() {
       }
   };
 
+  // Helper to calculate progress for an achievement
+  const getAchievementProgress = (ach: Achievement) => {
+      let current = 0;
+      switch (ach.conditionType) {
+          case 'lifetime_stars':
+              current = state.lifetimeEarnings;
+              break;
+          case 'streak':
+              current = state.streak;
+              break;
+          case 'category_count':
+              if (ach.categoryFilter) {
+                  Object.values(state.logs).forEach(dayLog => {
+                      dayLog.forEach(tid => {
+                          const t = state.tasks.find(tt => tt.id === tid);
+                          if (t && t.category === ach.categoryFilter) current++;
+                      });
+                  });
+              }
+              break;
+          case 'balance_level':
+              current = state.balance;
+              break;
+          case 'redemption_count':
+              current = state.transactions.filter(t => t.amount < 0 && (t.description.includes('兑换') || t.description.includes('购买'))).length;
+              break;
+          case 'mystery_box_count':
+              current = state.transactions.filter(t => t.description.includes('盲盒')).length;
+              break;
+          case 'wishlist_complete':
+              // Harder to track retroactively without event logs, approximate with completed wishlist items or just 0/1 if not tracked
+              current = state.unlockedAchievements.includes(ach.id) ? 1 : 0;
+              break;
+      }
+      return { current, total: ach.threshold };
+  };
+
   return (
     <div className={`min-h-screen ${activeTheme.bg || 'bg-[#FFF9F0]'} pb-28 transition-colors duration-500`}>
       {/* Block interactions during critical tasks */}
@@ -84,10 +125,18 @@ export default function App() {
 
       <CelebrationOverlay isVisible={state.showCelebration.show} points={state.showCelebration.points} type={state.showCelebration.type} />
       
-      {/* Achievement Modal */}
+      {/* NEW UNLOCKED Achievement Modal (Celebration) */}
       <AchievementModal 
         achievement={state.newUnlocked} 
         onClose={() => actions.setNewUnlocked(null)} 
+      />
+
+      {/* VIEW Achievement Detail Modal (From Stats Page) */}
+      <AchievementModal 
+        achievement={viewAchievement} 
+        onClose={() => setViewAchievement(null)} 
+        isLocked={viewAchievement ? !state.unlockedAchievements.includes(viewAchievement.id) : false}
+        progress={viewAchievement ? getAchievementProgress(viewAchievement) : undefined}
       />
 
       {/* Mystery Box Modal */}
@@ -142,6 +191,7 @@ export default function App() {
                 currentDate={state.currentDate}
                 theme={activeTheme}
                 unlockedAchievements={state.unlockedAchievements}
+                onViewAchievement={setViewAchievement}
             />
         )}
 

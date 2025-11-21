@@ -5,32 +5,15 @@ import { Task, TaskCategory, Reward, AvatarItem, Achievement } from './types'
 export const CLOUD_API_URL = 'https://dundun.uno'
 
 // --- AUDIO RESOURCES ---
-// 移动端音频播放指南：
-// 1. 请在项目根目录下创建 'public' 文件夹 (如果不存在)
-// 2. 在 public 文件夹内创建 'audio' 文件夹
-// 3. 将您的 mp3 文件放入 public/audio/ 目录
-// 4. 确保文件名与下方代码中的路径一致 (例如 taibangle.mp3)
-// 5. 打包后，/audio/xxx.mp3 会直接指向根目录下的资源，从而可以被读取
 export const AUDIO_RESOURCES = {
   SUCCESS: [
-    // 优先播放本地鼓励语 (请确保文件存在于 public/audio/ 目录下)
-    // '/audio/taibangle.mp3',    // 太棒了
-    // '/audio/nizhenbang.mp3',   // 你真棒
-    '/audio/unbelievable.mp3', // Unbelievable
-
-    // 在线备用音效 (如果本地文件没找到，或者加载失败，可以保留这些作为兜底)
-    // 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.m4a', // Arcade game reward
-    // 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.m4a', // Happy win
-    // 'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.m4a', // Success chime
+    'https://static-file.dundun.uno/audio/unbelievable.mp3', // Unbelievable
   ],
   PENALTY: [
-    '/audio/fail.mp3', // 本地失败音效
-    // 'https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.m4a', // Retro failure tone
-    // 'https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.m4a', // Short error
+    'https://static-file.dundun.uno/audio/fail.mp3', // 失败音效
   ],
   UNLOCK: [
-    '/audio/up.mp3', // 本地升级音效
-    // 'https://assets.mixkit.co/active_storage/sfx/2020/2020-preview.m4a', // Level up
+    'https://static-file.dundun.uno/audio/up.mp3', // 升级音效
   ],
 }
 

@@ -159,7 +159,7 @@ export const useAppLogic = () => {
       }
   };
 
-  // --- Audio Player (With Fallback Logic) ---
+  // --- Audio Player ---
   const playRandomSound = useCallback((type: 'success' | 'penalty' | 'unlock' = 'success') => {
       const urls = type === 'penalty' ? AUDIO_RESOURCES.PENALTY 
                  : type === 'unlock' ? AUDIO_RESOURCES.UNLOCK 
@@ -172,19 +172,8 @@ export const useAppLogic = () => {
       const audio = new Audio(randomUrl);
       audio.volume = 0.6;
       
-      // Add error handling to help user debug local files
       audio.onerror = (e) => {
           console.warn(`Audio failed to load: ${randomUrl}`);
-          console.warn("Hint: If this is a local file, make sure it is in the 'public' folder and referenced with a leading slash (e.g. '/audio/file.mp3').");
-          
-          // Simple fallback: if the random one failed and it was a local path, try the first online one if available
-          if (randomUrl.startsWith('/') && urls.some(u => u.startsWith('http'))) {
-              const fallbackUrl = urls.find(u => u.startsWith('http'));
-              if (fallbackUrl) {
-                  console.log("Attempting fallback to online audio:", fallbackUrl);
-                  new Audio(fallbackUrl).play().catch(err => console.error("Fallback failed", err));
-              }
-          }
       };
 
       audio.play().catch(e => {
