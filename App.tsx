@@ -88,6 +88,7 @@ export default function App() {
             <DailyView 
                 tasks={state.tasks}
                 logs={state.logs}
+                transactions={state.transactions}
                 date={state.currentDate}
                 setDate={actions.setCurrentDate}
                 onToggleTask={actions.toggleTask}

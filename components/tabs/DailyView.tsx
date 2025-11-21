@@ -1,7 +1,7 @@
 
-import React from 'react';
-import { Circle, CheckCircle2, XCircle, Smile, BrainCircuit, Heart, Zap } from 'lucide-react';
-import { Task, TaskCategory } from '../../types';
+import React, { useMemo } from 'react';
+import { Circle, CheckCircle2, XCircle, Smile, BrainCircuit, Heart, Zap, TrendingUp, TrendingDown } from 'lucide-react';
+import { Task, TaskCategory, Transaction } from '../../types';
 import { CATEGORY_STYLES } from '../../constants';
 import { DateNavigator } from '../DateNavigator';
 import { ThemeKey } from '../../styles/themes';
@@ -9,6 +9,7 @@ import { ThemeKey } from '../../styles/themes';
 interface DailyViewProps {
   tasks: Task[];
   logs: Record<string, string[]>;
+  transactions: Transaction[];
   date: Date;
   setDate: (d: Date) => void;
   onToggleTask: (task: Task) => void;
@@ -16,8 +17,47 @@ interface DailyViewProps {
   dateKey: string;
 }
 
-export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, date, setDate, onToggleTask, themeKey, dateKey }) => {
-    
+export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, transactions, date, setDate, onToggleTask, themeKey, dateKey }) => {
+  
+  // Calculate Daily Stats for the mini-header
+  const dailyStats = useMemo(() => {
+      let earned = 0;
+      let spent = 0;
+      
+      // Filter transactions for the selected date
+      const startOfDay = new Date(date); startOfDay.setHours(0,0,0,0);
+      const endOfDay = new Date(date); endOfDay.setHours(23,59,59,999);
+      
+      transactions.forEach(tx => {
+          const txDate = new Date(tx.date);
+          if (txDate >= startOfDay && txDate <= endOfDay) {
+              const amount = tx.amount;
+              const isShop = tx.description.includes('兑换') || tx.description.includes('购买');
+              const isUndo = tx.description.includes('撤销');
+              
+              if (amount > 0) {
+                  // Earned (or undo of spend/penalty)
+                  if (isUndo && (isShop || tx.type === 'SPEND' || tx.type === 'PENALTY')) {
+                      // Undoing a spend returns money, but we track "Spent today". 
+                      // If we undo a spend, we reduce the spent amount.
+                      spent -= Math.abs(amount);
+                  } else {
+                      earned += amount;
+                  }
+              } else {
+                  // Spent or Penalty (or undo of earn)
+                  if (isUndo) {
+                       earned -= Math.abs(amount);
+                  } else {
+                      // It's a negative transaction
+                      spent += Math.abs(amount);
+                  }
+              }
+          }
+      });
+      return { earned: Math.max(0, earned), spent: Math.max(0, spent) };
+  }, [transactions, date]);
+
   const renderTaskList = (category: TaskCategory) => {
     const categoryTasks = tasks.filter(t => t.category === category);
     const completedIds = logs[dateKey] || [];
@@ -79,6 +119,23 @@ export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, date, setDate
   return (
     <>
         <DateNavigator date={date} setDate={setDate} themeKey={themeKey} />
+        
+        {/* Daily Quick Summary */}
+        <div className="flex justify-center gap-4 mb-6 -mt-2 animate-slide-up">
+            <div className="bg-white/60 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/60 shadow-sm flex items-center gap-2">
+                <div className="bg-lime-100 p-1 rounded-full"><TrendingUp size={12} className="text-lime-600"/></div>
+                <span className="text-xs font-bold text-slate-500 uppercase">今日获得</span>
+                <span className="font-cute text-lg text-lime-600">+{dailyStats.earned}</span>
+            </div>
+            {dailyStats.spent > 0 && (
+                <div className="bg-white/60 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/60 shadow-sm flex items-center gap-2">
+                    <div className="bg-rose-100 p-1 rounded-full"><TrendingDown size={12} className="text-rose-600"/></div>
+                    <span className="text-xs font-bold text-slate-500 uppercase">消耗/扣分</span>
+                    <span className="font-cute text-lg text-rose-500">-{dailyStats.spent}</span>
+                </div>
+            )}
+        </div>
+
         <div className="pb-6">
             {renderTaskList(TaskCategory.LIFE)}
             {renderTaskList(TaskCategory.BEHAVIOR)}
