@@ -442,6 +442,10 @@ export const useAppLogic = () => {
 
   const handleStartAdventure = async (name: string) => {
     const newId = cloudService.generateFamilyId();
+    
+    // Update local state immediately to prevent auto-save race condition
+    setUserName(name);
+    
     setFamilyId(newId);
     setIsSyncReady(true);
     

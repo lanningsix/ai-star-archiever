@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Settings, User, Edit3, Cloud, RefreshCw, Copy, Upload, Download, Palette, Plus, Trash2, Star } from 'lucide-react';
 import { Theme, ThemeKey, THEMES } from '../../styles/themes';
@@ -28,6 +27,7 @@ interface SettingsViewProps {
       disconnect: () => void;
       reset: () => void;
       showToast: (msg: string, type: ToastType) => void;
+      confirm: (title: string, message: string, onConfirm: () => void, isDanger?: boolean) => void;
   };
   theme: Theme;
 }
@@ -161,9 +161,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                          
                          <div className="mt-4 text-center">
                             <button onClick={() => {
-                                if(window.confirm('确定要断开同步吗？本地数据会保留，但停止上传。')) {
-                                    actions.disconnect();
-                                }
+                                actions.confirm(
+                                    "断开同步？",
+                                    "本地数据会保留，但之后的操作不会上传到云端。确定要断开连接吗？",
+                                    actions.disconnect,
+                                    true
+                                );
                             }} className="text-xs text-slate-400 underline hover:text-rose-400">断开连接</button>
                          </div>
                     </div>
@@ -220,7 +223,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 <div className="flex items-center gap-2">
                                     <span className={`font-cute text-base ${t.stars > 0 ? 'text-amber-400' : 'text-rose-400'}`}>{t.stars > 0 ? '+' : ''}{t.stars}</span>
                                     <button onClick={() => {
-                                        if(window.confirm("删除此任务?")) setTasks(tasks.filter(x => x.id !== t.id));
+                                        actions.confirm(
+                                            "删除任务",
+                                            `确定要删除 "${t.title}" 吗？`,
+                                            () => setTasks(tasks.filter(x => x.id !== t.id)),
+                                            true
+                                        );
                                     }} className="text-slate-300 hover:text-rose-400 p-1.5"><Trash2 size={16}/></button>
                                 </div>
                             </div>
@@ -248,7 +256,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 <div className="flex items-center gap-2">
                                     <span className={`font-cute text-base ${theme.accent} flex items-center gap-1`}>{r.cost} <Star size={12} fill="currentColor"/></span>
                                     <button onClick={() => {
-                                        if(window.confirm("删除此奖励?")) setRewards(rewards.filter(x => x.id !== r.id));
+                                        actions.confirm(
+                                            "删除奖励",
+                                            `确定要删除 "${r.title}" 吗？`,
+                                            () => setRewards(rewards.filter(x => x.id !== r.id)),
+                                            true
+                                        );
                                     }} className="text-slate-300 hover:text-rose-400 p-1.5"><Trash2 size={16}/></button>
                                 </div>
                             </div>
@@ -258,7 +271,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
             
             <button 
-                onClick={actions.reset}
+                onClick={() => {
+                    actions.confirm(
+                        "危险：重置所有数据",
+                        "这将清除本地所有数据并刷新页面。如果未同步到云端，数据将永久丢失！",
+                        actions.reset,
+                        true
+                    );
+                }}
                 className="w-full mt-10 p-3 text-rose-400 text-sm font-bold bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors border border-rose-100"
             >
                 重置所有数据 (慎用)

@@ -17,6 +17,7 @@ import { SettingsView } from './components/tabs/SettingsView';
 import { OnboardingModal } from './components/modals/OnboardingModal';
 import { TaskModal } from './components/modals/TaskModal';
 import { RewardModal } from './components/modals/RewardModal';
+import { ConfirmModal } from './components/modals/ConfirmModal';
 
 export default function App() {
   const { state, actions } = useAppLogic();
@@ -26,6 +27,25 @@ export default function App() {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const [isNameModalOpen, setIsNameModalOpen] = useState(!localStorage.getItem('app_family_id') && !localStorage.getItem('app_username'));
+  
+  // Confirmation Modal State
+  const [confirmState, setConfirmState] = useState<{
+      isOpen: boolean;
+      title: string;
+      message: string;
+      onConfirm: () => void;
+      isDanger: boolean;
+  }>({
+      isOpen: false,
+      title: '',
+      message: '',
+      onConfirm: () => {},
+      isDanger: false
+  });
+
+  const openConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
+      setConfirmState({ isOpen: true, title, message, onConfirm, isDanger });
+  };
 
   return (
     <div className={`min-h-screen ${activeTheme.bg || 'bg-[#FFF9F0]'} pb-28 transition-colors duration-500`}>
@@ -48,6 +68,16 @@ export default function App() {
       />
 
       <CelebrationOverlay isVisible={state.showCelebration.show} points={state.showCelebration.points} type={state.showCelebration.type} />
+      
+      {/* Global Confirm Modal */}
+      <ConfirmModal 
+         isOpen={confirmState.isOpen}
+         title={confirmState.title}
+         message={confirmState.message}
+         onConfirm={confirmState.onConfirm}
+         onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+         isDanger={confirmState.isDanger}
+      />
 
       <Header balance={state.balance} userName={state.userName} themeKey={state.themeKey} />
 
@@ -105,7 +135,8 @@ export default function App() {
                     manualLoad: actions.handleCloudLoad,
                     disconnect: () => actions.setFamilyId(''),
                     reset: actions.resetData,
-                    showToast: actions.showToast
+                    showToast: actions.showToast,
+                    confirm: openConfirm
                 }}
             />
         )}
@@ -117,9 +148,16 @@ export default function App() {
       <OnboardingModal 
         isOpen={isNameModalOpen}
         userName={state.userName}
-        setUserName={actions.setUserName}
+        isEditing={!!state.familyId || state.userName !== ''} 
         onStart={(name) => {
-            actions.handleStartAdventure(name);
+            if (state.userName || state.familyId) {
+                // Editing existing user (synced or local)
+                actions.setUserName(name);
+                actions.showToast('昵称已更新', 'success');
+            } else {
+                // New user (Start fresh adventure)
+                actions.handleStartAdventure(name);
+            }
             setIsNameModalOpen(false);
         }}
         onJoin={(id) => {

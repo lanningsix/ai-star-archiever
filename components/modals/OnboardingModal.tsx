@@ -1,22 +1,30 @@
 
-import React, { useState } from 'react';
-import { User, Link as LinkIcon, ArrowRight, Cloud } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Link as LinkIcon, ArrowRight, Cloud, Save } from 'lucide-react';
 import { Theme } from '../../styles/themes';
 
 interface OnboardingModalProps {
     isOpen: boolean;
     userName: string;
-    setUserName: (name: string) => void;
     onStart: (name: string) => void;
     onJoin: (id: string) => void;
     theme: Theme;
+    isEditing?: boolean;
 }
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ 
-    isOpen, userName, setUserName, onStart, onJoin, theme 
+    isOpen, userName, onStart, onJoin, theme, isEditing = false 
 }) => {
     const [mode, setMode] = useState<'create' | 'join'>('create');
     const [joinId, setJoinId] = useState('');
+    const [localName, setLocalName] = useState(userName);
+
+    useEffect(() => {
+        if (isOpen) {
+            setLocalName(userName);
+            setMode('create'); // Default to create/edit view
+        }
+    }, [isOpen, userName]);
 
     if (!isOpen) return null;
 
@@ -29,32 +37,40 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 </div>
                 
                 <h2 className="font-cute text-2xl text-slate-800 mb-2">
-                    {mode === 'create' ? '欢迎来到小小星系!' : '同步已有数据'}
+                    {isEditing ? '修改昵称' : (mode === 'create' ? '欢迎来到小小星系!' : '同步已有数据')}
                 </h2>
                 
                 {mode === 'create' ? (
                     <>
-                    <p className="text-slate-500 mb-6 text-base">告诉星星你叫什么名字吧？</p>
+                    <p className="text-slate-500 mb-6 text-base">
+                        {isEditing ? '换个好听的名字吧？' : '告诉星星你叫什么名字吧？'}
+                    </p>
                     <input 
-                        value={userName}
-                        onChange={(e) => setUserName(e.target.value)}
+                        value={localName}
+                        onChange={(e) => setLocalName(e.target.value)}
                         placeholder="输入你的名字"
                         className={`w-full bg-slate-50 border-2 rounded-xl p-3 text-center text-xl font-bold text-slate-700 outline-none focus:${theme.border} mb-6`}
                     />
                     <button 
-                        disabled={!userName.trim()}
-                        onClick={() => onStart(userName)}
-                        className={`w-full py-3 rounded-xl font-cute text-xl text-white shadow-xl transition-transform hover:scale-105 active:scale-95 mb-4 flex items-center justify-center gap-2 ${!userName.trim() ? 'bg-slate-300' : `bg-gradient-to-r ${theme.gradient}`}`}
+                        disabled={!localName.trim()}
+                        onClick={() => onStart(localName)}
+                        className={`w-full py-3 rounded-xl font-cute text-xl text-white shadow-xl transition-transform hover:scale-105 active:scale-95 mb-4 flex items-center justify-center gap-2 ${!localName.trim() ? 'bg-slate-300' : `bg-gradient-to-r ${theme.gradient}`}`}
                     >
-                        开始探险！<ArrowRight size={20} />
+                        {isEditing ? (
+                            <>保存修改 <Save size={20} /></>
+                        ) : (
+                            <>开始探险！<ArrowRight size={20} /></>
+                        )}
                     </button>
                     
-                    <button 
-                        onClick={() => setMode('join')}
-                        className="text-sm text-slate-400 underline hover:text-slate-600"
-                    >
-                        我有家庭同步ID
-                    </button>
+                    {!isEditing && (
+                        <button 
+                            onClick={() => setMode('join')}
+                            className="text-sm text-slate-400 underline hover:text-slate-600"
+                        >
+                            我有家庭同步ID
+                        </button>
+                    )}
                     </>
                 ) : (
                     <>
