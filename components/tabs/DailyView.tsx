@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Circle, CheckCircle2, XCircle, Smile, BrainCircuit, Heart, Zap, TrendingUp, TrendingDown } from 'lucide-react';
 import { Task, TaskCategory, Transaction } from '../../types';
@@ -24,7 +23,6 @@ export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, transactions,
       let earned = 0;
       let spent = 0;
       
-      // Filter transactions for the selected date
       const startOfDay = new Date(date); startOfDay.setHours(0,0,0,0);
       const endOfDay = new Date(date); endOfDay.setHours(23,59,59,999);
       
@@ -32,24 +30,24 @@ export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, transactions,
           const txDate = new Date(tx.date);
           if (txDate >= startOfDay && txDate <= endOfDay) {
               const amount = tx.amount;
-              const isShop = tx.description.includes('兑换') || tx.description.includes('购买');
-              const isUndo = tx.description.includes('撤销');
+              const isUndo = tx.description.includes('撤销') || tx.description.includes('退回');
               
               if (amount > 0) {
-                  // Earned (or undo of spend/penalty)
-                  if (isUndo && (isShop || tx.type === 'SPEND' || tx.type === 'PENALTY')) {
-                      // Undoing a spend returns money, but we track "Spent today". 
-                      // If we undo a spend, we reduce the spent amount.
-                      spent -= Math.abs(amount);
+                  // Positive amount (Money in)
+                  if (isUndo) {
+                      // Reversing a spend/penalty -> Reduce Spent
+                      spent -= amount;
                   } else {
+                      // Actual Earning
                       earned += amount;
                   }
               } else {
-                  // Spent or Penalty (or undo of earn)
+                  // Negative amount (Money out)
                   if (isUndo) {
-                       earned -= Math.abs(amount);
+                      // Reversing an earning -> Reduce Earned
+                      earned -= Math.abs(amount);
                   } else {
-                      // It's a negative transaction
+                      // Actual Spend/Penalty
                       spent += Math.abs(amount);
                   }
               }

@@ -1,8 +1,7 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS, AVATAR_ITEMS } from '../constants';
-import { Task, Reward, TaskCategory, Transaction, AppState, AvatarState, AvatarItem } from '../types';
+import { Task, Reward, TaskCategory, Transaction, AppState, AvatarState, AvatarItem, WishlistGoal } from '../types';
 import { ThemeKey } from '../styles/themes';
 import { cloudService, DataScope } from '../services/cloud';
 import { ToastType } from '../components/Toast';
@@ -26,9 +25,14 @@ export const useAppLogic = () => {
     return saved ? JSON.parse(saved) : INITIAL_REWARDS;
   });
 
+  const [wishlist, setWishlist] = useState<WishlistGoal[]>(() => {
+    const saved = localStorage.getItem('app_wishlist');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [logs, setLogs] = useState<Record<string, string[]>>(() => {
     const saved = localStorage.getItem('app_logs');
-    return saved ? JSON.parse(saved) : INITIAL_REWARDS;
+    return saved ? JSON.parse(saved) : {};
   });
 
   const [balance, setBalance] = useState<number>(() => {
@@ -75,6 +79,7 @@ export const useAppLogic = () => {
   useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
   useEffect(() => localStorage.setItem('app_tasks', JSON.stringify(tasks)), [tasks]);
   useEffect(() => localStorage.setItem('app_rewards', JSON.stringify(rewards)), [rewards]);
+  useEffect(() => localStorage.setItem('app_wishlist', JSON.stringify(wishlist)), [wishlist]);
   useEffect(() => localStorage.setItem('app_logs', JSON.stringify(logs)), [logs]);
   useEffect(() => localStorage.setItem('app_balance', balance.toString()), [balance]);
   useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
@@ -152,6 +157,7 @@ export const useAppLogic = () => {
 
         if (data.tasks) setTasks(data.tasks);
         if (data.rewards) setRewards(data.rewards);
+        if (data.wishlist) setWishlist(data.wishlist);
         if (data.logs) setLogs(data.logs);
         if (data.balance !== undefined) setBalance(data.balance);
         if (data.transactions) setTransactions(data.transactions);
@@ -212,10 +218,9 @@ export const useAppLogic = () => {
             setIsLoading(true);
             let scope = 'all';
             if (activeTab === 'daily') scope = 'daily';
-            if (activeTab === 'store') scope = 'store';
+            if (activeTab === 'store') scope = 'store'; // Store includes wishlist
             if (activeTab === 'calendar') scope = 'calendar';
             if (activeTab === 'settings') scope = 'settings';
-            // Stats uses logs/tasks which are 'daily' scope effectively, but we can just use daily
             if (activeTab === 'stats') scope = 'daily'; 
             
             // Keep silent=true to avoid confetti/toast spam, but use isLoading to show spinner
@@ -238,6 +243,12 @@ export const useAppLogic = () => {
     const t = setTimeout(() => syncData('rewards', rewards, true), 500);
     return () => clearTimeout(t);
   }, [rewards, familyId]);
+
+  useEffect(() => {
+    if (!familyId || !isSyncReady) return;
+    const t = setTimeout(() => syncData('wishlist', wishlist, true), 500);
+    return () => clearTimeout(t);
+  }, [wishlist, familyId]);
 
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
@@ -309,7 +320,7 @@ export const useAppLogic = () => {
       date: txDate.toISOString(),
       description,
       amount,
-      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买')) ? 'SPEND' : 'PENALTY'
+      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买') || description.includes('存入')) ? 'SPEND' : 'PENALTY'
     };
     setTransactions(prev => [newTx, ...prev]);
   };
@@ -366,6 +377,49 @@ export const useAppLogic = () => {
       showToast(`星星不够哦！还需要 ${reward.cost - balance} 颗星星。`, 'error');
       speak('星星不够哦');
     }
+  };
+
+  // Wishlist Actions
+  const depositToWishlist = (goal: WishlistGoal, amount: number) => {
+      if (balance < amount) {
+          showToast('星星不够哦！', 'error');
+          speak('星星不够哦');
+          return;
+      }
+      if (amount <= 0) return;
+
+      updateBalance(-amount, `存入心愿: ${goal.title}`);
+      
+      const updatedWishlist = wishlist.map(g => {
+          if (g.id === goal.id) {
+              const newSaved = g.currentSaved + amount;
+              const isCompleted = newSaved >= g.targetCost;
+              if (isCompleted) {
+                   // Goal Reached!
+                   speak(`太棒了！心愿 ${g.title} 达成！`);
+                   safeConfetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
+              }
+              return { ...g, currentSaved: newSaved };
+          }
+          return g;
+      });
+      
+      setWishlist(updatedWishlist);
+      showToast(`成功存入 ${amount} 颗星星`, 'success');
+  };
+
+  const addWishlistGoal = (goal: WishlistGoal) => {
+      setWishlist([...wishlist, goal]);
+  };
+
+  const deleteWishlistGoal = (id: string) => {
+      const goal = wishlist.find(g => g.id === id);
+      // Refund logic
+      if (goal && goal.currentSaved > 0) {
+          updateBalance(goal.currentSaved, `退回心愿存款: ${goal.title}`);
+          showToast(`退回了 ${goal.currentSaved} 颗星星`, 'info');
+      }
+      setWishlist(wishlist.filter(g => g.id !== id));
   };
 
   // Avatar Actions (Retained logic but UI hidden)
@@ -433,6 +487,7 @@ export const useAppLogic = () => {
         await cloudService.saveData(fid, 'settings', { userName, themeKey });
         await cloudService.saveData(fid, 'tasks', tasks);
         await cloudService.saveData(fid, 'rewards', rewards);
+        await cloudService.saveData(fid, 'wishlist', wishlist);
         await cloudService.saveData(fid, 'activity', { logs, balance, transactions });
         
         setSyncStatus('saved');
@@ -462,6 +517,7 @@ export const useAppLogic = () => {
             cloudService.saveData(newId, 'settings', { userName: name, themeKey: 'lemon' }),
             cloudService.saveData(newId, 'tasks', INITIAL_TASKS),
             cloudService.saveData(newId, 'rewards', INITIAL_REWARDS),
+            cloudService.saveData(newId, 'wishlist', []),
             cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] })
         ]);
 
@@ -506,7 +562,7 @@ export const useAppLogic = () => {
   return {
     state: {
       activeTab, currentDate, userName, themeKey, familyId,
-      tasks, rewards, logs, balance, transactions, avatar,
+      tasks, rewards, wishlist, logs, balance, transactions, avatar,
       syncStatus, isInteractionBlocked, showCelebration,
       dateKey: getDateKey(currentDate),
       toast,
@@ -514,8 +570,8 @@ export const useAppLogic = () => {
     },
     actions: {
       setActiveTab, setCurrentDate, setUserName, setThemeKey, setFamilyId,
-      setTasks, setRewards,
-      toggleTask, redeemReward,
+      setTasks, setRewards, setWishlist,
+      toggleTask, redeemReward, depositToWishlist, addWishlistGoal, deleteWishlistGoal,
       buyAvatarItem, equipAvatarItem,
       createFamily, manualSaveAll, handleCloudLoad, handleStartAdventure, handleJoinFamily, resetData,
       setShowCelebration,

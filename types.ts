@@ -21,6 +21,14 @@ export interface Reward {
   icon: string; // Emoji or Lucide icon name
 }
 
+export interface WishlistGoal {
+  id: string;
+  title: string;
+  targetCost: number;
+  currentSaved: number;
+  icon: string;
+}
+
 export interface DailyLog {
   date: string; // YYYY-MM-DD
   completedTaskIds: string[];
@@ -65,6 +73,7 @@ export interface AvatarState {
 export interface AppState {
   tasks: Task[];
   rewards: Reward[];
+  wishlist: WishlistGoal[];
   logs: Record<string, string[]>; // date -> array of task IDs
   balance: number;
   transactions: Transaction[];

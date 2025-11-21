@@ -1,10 +1,10 @@
-
 import { CLOUD_API_URL } from '../constants';
-import { AppState, Task, Reward, Transaction, AvatarState } from '../types';
+import { AppState, Task, Reward, Transaction, AvatarState, WishlistGoal } from '../types';
 
 export interface CloudData {
   tasks?: Task[];
   rewards?: Reward[];
+  wishlist?: WishlistGoal[];
   logs?: Record<string, string[]>;
   balance: number;
   transactions?: Transaction[];
@@ -14,7 +14,7 @@ export interface CloudData {
   lastUpdated?: number;
 }
 
-export type DataScope = 'tasks' | 'rewards' | 'settings' | 'activity' | 'avatar';
+export type DataScope = 'tasks' | 'rewards' | 'wishlist' | 'settings' | 'activity' | 'avatar';
 
 export const cloudService = {
   // Generate a random Family ID

@@ -1,4 +1,3 @@
-
 -- 1. Settings Table (存储家庭设置)
 DROP TABLE IF EXISTS settings;
 CREATE TABLE settings (
@@ -58,5 +57,18 @@ CREATE TABLE transactions (
     amount INTEGER,
     type TEXT,
     created_at INTEGER,
+    PRIMARY KEY (family_id, id)
+);
+
+-- 6. Wishlist Table (存储心愿单)
+DROP TABLE IF EXISTS wishlist_goals;
+CREATE TABLE wishlist_goals (
+    id TEXT,
+    family_id TEXT,
+    title TEXT,
+    target_cost INTEGER,
+    current_saved INTEGER,
+    icon TEXT,
+    updated_at INTEGER,
     PRIMARY KEY (family_id, id)
 );

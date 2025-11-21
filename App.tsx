@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { CelebrationOverlay } from './components/CelebrationOverlay';
@@ -19,6 +18,8 @@ import { OnboardingModal } from './components/modals/OnboardingModal';
 import { TaskModal } from './components/modals/TaskModal';
 import { RewardModal } from './components/modals/RewardModal';
 import { ConfirmModal } from './components/modals/ConfirmModal';
+import { ParentalGateModal } from './components/modals/ParentalGateModal';
+import { WishlistModal } from './components/modals/WishlistModal';
 
 export default function App() {
   const { state, actions } = useAppLogic();
@@ -27,7 +28,9 @@ export default function App() {
   // Modal Visibility State
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
+  const [isWishlistModalOpen, setIsWishlistModalOpen] = useState(false);
   const [isNameModalOpen, setIsNameModalOpen] = useState(!localStorage.getItem('app_family_id') && !localStorage.getItem('app_username'));
+  const [isParentalLockOpen, setIsParentalLockOpen] = useState(false);
   
   // Confirmation Modal State
   const [confirmState, setConfirmState] = useState<{
@@ -46,6 +49,14 @@ export default function App() {
 
   const openConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
       setConfirmState({ isOpen: true, title, message, onConfirm, isDanger });
+  };
+
+  const handleTabChange = (tab: 'daily' | 'store' | 'calendar' | 'settings' | 'stats') => {
+      if (tab === 'settings') {
+          setIsParentalLockOpen(true);
+      } else {
+          actions.setActiveTab(tab);
+      }
   };
 
   return (
@@ -78,6 +89,16 @@ export default function App() {
          onConfirm={confirmState.onConfirm}
          onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
          isDanger={confirmState.isDanger}
+      />
+
+      {/* Parental Gate */}
+      <ParentalGateModal 
+          isOpen={isParentalLockOpen}
+          onClose={() => setIsParentalLockOpen(false)}
+          onSuccess={() => {
+              setIsParentalLockOpen(false);
+              actions.setActiveTab('settings');
+          }}
       />
 
       <Header balance={state.balance} userName={state.userName} themeKey={state.themeKey} />
@@ -113,6 +134,10 @@ export default function App() {
                 balance={state.balance}
                 onRedeem={actions.redeemReward}
                 theme={activeTheme}
+                wishlist={state.wishlist}
+                onAddGoal={() => setIsWishlistModalOpen(true)}
+                onDeleteGoal={(id) => openConfirm("删除心愿", "确定要删除这个心愿吗？已存的星星会退回。", () => actions.deleteWishlistGoal(id))}
+                onDeposit={actions.depositToWishlist}
             />
         )}
 
@@ -154,7 +179,7 @@ export default function App() {
         )}
       </div>
 
-      <NavBar activeTab={state.activeTab} setActiveTab={actions.setActiveTab} themeKey={state.themeKey} />
+      <NavBar activeTab={state.activeTab} setActiveTab={handleTabChange} themeKey={state.themeKey} />
 
       {/* Modals */}
       <OnboardingModal 
@@ -195,6 +220,16 @@ export default function App() {
         onSave={(newReward) => {
             actions.setRewards([...state.rewards, { id: Date.now().toString(), ...newReward }]);
             setIsRewardModalOpen(false);
+        }}
+        theme={activeTheme}
+        onShowToast={actions.showToast}
+      />
+
+      <WishlistModal
+        isOpen={isWishlistModalOpen}
+        onClose={() => setIsWishlistModalOpen(false)}
+        onSave={(goal) => {
+            actions.addWishlistGoal({ id: Date.now().toString(), currentSaved: 0, ...goal });
         }}
         theme={activeTheme}
         onShowToast={actions.showToast}
