@@ -8,7 +8,7 @@ import { cloudService, DataScope } from '../services/cloud';
 import { ToastType } from '../components/Toast';
 
 export const useAppLogic = () => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings' | 'stats'>('daily');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // --- State ---
@@ -53,7 +53,8 @@ export const useAppLogic = () => {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
   const [isSyncReady, setIsSyncReady] = useState(false);
   const [isInteractionBlocked, setIsInteractionBlocked] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  // Initialize isLoading to true if there is a familyId (data to load), otherwise false
+  const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('app_family_id'));
 
   // --- Celebration State ---
   const [showCelebration, setShowCelebration] = useState<{show: boolean, points: number, type: 'success' | 'penalty'}>({ 
@@ -198,7 +199,9 @@ export const useAppLogic = () => {
   // Initialization load
   useEffect(() => {
     if (familyId) {
-      handleCloudLoad(familyId, true, 'all');
+      handleCloudLoad(familyId, true, 'all').finally(() => {
+          setIsLoading(false);
+      });
     }
   }, []);
 
@@ -212,6 +215,8 @@ export const useAppLogic = () => {
             if (activeTab === 'store') scope = 'store';
             if (activeTab === 'calendar') scope = 'calendar';
             if (activeTab === 'settings') scope = 'settings';
+            // Stats uses logs/tasks which are 'daily' scope effectively, but we can just use daily
+            if (activeTab === 'stats') scope = 'daily'; 
             
             // Keep silent=true to avoid confetti/toast spam, but use isLoading to show spinner
             await handleCloudLoad(familyId, true, scope);
@@ -441,33 +446,45 @@ export const useAppLogic = () => {
   };
 
   const handleStartAdventure = async (name: string) => {
+    setIsLoading(true);
     const newId = cloudService.generateFamilyId();
     
     // Update local state immediately to prevent auto-save race condition
     setUserName(name);
-    
     setFamilyId(newId);
-    setIsSyncReady(true);
     
-    setTimeout(async () => {
-        try {
-            await cloudService.saveData(newId, 'settings', { userName: name, themeKey: 'lemon' });
-            await cloudService.saveData(newId, 'tasks', INITIAL_TASKS);
-            await cloudService.saveData(newId, 'rewards', INITIAL_REWARDS);
-            await cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] });
-            triggerStarConfetti();
-            showToast(`欢迎你，${name}！`, 'success');
-        } catch (error) {
-            console.error("Start adventure save failed", error);
-            setSyncStatus('error');
-        }
-    }, 100);
+    // Ensure auto-sync is NOT ready yet, so useEffects triggered by familyId change don't fire double saves
+    setIsSyncReady(false);
+    
+    try {
+        // Manually save all initial data to cloud (Await to ensure completion)
+        await Promise.all([
+            cloudService.saveData(newId, 'settings', { userName: name, themeKey: 'lemon' }),
+            cloudService.saveData(newId, 'tasks', INITIAL_TASKS),
+            cloudService.saveData(newId, 'rewards', INITIAL_REWARDS),
+            cloudService.saveData(newId, 'activity', { logs: {}, balance: 0, transactions: [] })
+        ]);
+
+        triggerStarConfetti();
+        showToast(`欢迎你，${name}！`, 'success');
+        
+        // Now enable auto-sync
+        setIsSyncReady(true);
+    } catch (error) {
+        console.error("Start adventure save failed", error);
+        setSyncStatus('error');
+        showToast('初始化失败，请重试', 'error');
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   const handleJoinFamily = async (id: string) => {
       setFamilyId(id);
       setIsSyncReady(false);
+      setIsLoading(true);
       await handleCloudLoad(id, false, 'all');
+      setIsLoading(false);
   };
 
   const resetData = () => {

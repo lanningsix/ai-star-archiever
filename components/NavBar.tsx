@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { CheckCircle2, ShoppingBag, Calendar as CalendarIcon, Settings } from 'lucide-react';
+import { CheckCircle2, ShoppingBag, Calendar as CalendarIcon, Settings, BarChart2 } from 'lucide-react';
 import { THEMES, ThemeKey } from '../styles/themes';
 
 interface NavBarProps {
-  activeTab: 'daily' | 'store' | 'calendar' | 'settings';
-  setActiveTab: (tab: 'daily' | 'store' | 'calendar' | 'settings') => void;
+  activeTab: 'daily' | 'store' | 'calendar' | 'settings' | 'stats';
+  setActiveTab: (tab: 'daily' | 'store' | 'calendar' | 'settings' | 'stats') => void;
   themeKey: ThemeKey;
 }
 
@@ -34,8 +34,9 @@ export const NavBar: React.FC<NavBarProps> = ({ activeTab, setActiveTab, themeKe
   
   return (
     <nav className="fixed bottom-6 left-4 right-4 z-30">
-        <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-white max-w-2xl mx-auto px-4 h-20 flex justify-around items-center">
+        <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-white max-w-2xl mx-auto px-2 h-20 flex justify-around items-center">
             <NavBtn icon={<CheckCircle2 />} label="打卡" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} activeClass={theme.accent} />
+            <NavBtn icon={<BarChart2 />} label="分析" active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} activeClass={theme.accent} />
             <NavBtn icon={<ShoppingBag />} label="商城" active={activeTab === 'store'} onClick={() => setActiveTab('store')} activeClass={theme.accent} />
             <NavBtn icon={<CalendarIcon />} label="记录" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} activeClass={theme.accent} />
             <NavBtn icon={<Settings />} label="设置" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} activeClass="text-slate-500" />

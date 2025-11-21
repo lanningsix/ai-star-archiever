@@ -12,6 +12,7 @@ import { DailyView } from './components/tabs/DailyView';
 import { StoreView } from './components/tabs/StoreView';
 import { CalendarView } from './components/tabs/CalendarView';
 import { SettingsView } from './components/tabs/SettingsView';
+import { StatsView } from './components/tabs/StatsView';
 
 // Modals
 import { OnboardingModal } from './components/modals/OnboardingModal';
@@ -92,6 +93,16 @@ export default function App() {
                 onToggleTask={actions.toggleTask}
                 themeKey={state.themeKey}
                 dateKey={state.dateKey}
+            />
+        )}
+
+        {state.activeTab === 'stats' && (
+            <StatsView
+                tasks={state.tasks}
+                logs={state.logs}
+                transactions={state.transactions}
+                currentDate={state.currentDate}
+                theme={activeTheme}
             />
         )}
 
