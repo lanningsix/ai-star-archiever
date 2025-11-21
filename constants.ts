@@ -2,11 +2,33 @@
 
 
 
+
 import { Task, TaskCategory, Reward, AvatarItem, Achievement } from './types';
 
 // [CLOUDFLARE CONFIG]
 // Cloudflare Worker 后端地址
 export const CLOUD_API_URL = 'https://dundun.uno'; 
+
+// --- AUDIO RESOURCES ---
+// 移动端 TTS 不稳定，使用音频文件代替。
+// 您可以将下方的链接替换为任何 MP3/WAV 文件的 URL（例如录制的父母语音）。
+export const AUDIO_RESOURCES = {
+    SUCCESS: [
+        // 胜利/成功音效 (可替换为 "太棒了.mp3", "你真棒.mp3" 等链接)
+        'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.m4a', // Arcade game reward
+        'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.m4a', // Happy win
+        'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.m4a', // Success chime
+    ],
+    PENALTY: [
+        // 失败/扣分音效
+        'https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.m4a', // Retro failure tone
+        'https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.m4a', // Short error
+    ],
+    UNLOCK: [
+        // 成就解锁
+        'https://assets.mixkit.co/active_storage/sfx/2020/2020-preview.m4a', // Level up
+    ]
+};
 
 export const INITIAL_TASKS: Task[] = [
   // Life Habits

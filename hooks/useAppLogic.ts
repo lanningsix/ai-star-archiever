@@ -1,7 +1,9 @@
 
+
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
-import { INITIAL_TASKS, INITIAL_REWARDS, ACHIEVEMENTS, MYSTERY_BOX_COST, MYSTERY_BOX_REWARDS } from '../constants';
+import { INITIAL_TASKS, INITIAL_REWARDS, ACHIEVEMENTS, MYSTERY_BOX_COST, MYSTERY_BOX_REWARDS, AUDIO_RESOURCES } from '../constants';
 import { Task, Reward, TaskCategory, Transaction, WishlistGoal, Achievement } from '../types';
 import { ThemeKey } from '../styles/themes';
 import { cloudService, DataScope } from '../services/cloud';
@@ -152,6 +154,23 @@ export const useAppLogic = () => {
       }
   };
 
+  // --- Audio Player (Replacement for Speech Synthesis) ---
+  const playRandomSound = useCallback((type: 'success' | 'penalty' | 'unlock' = 'success') => {
+      const urls = type === 'penalty' ? AUDIO_RESOURCES.PENALTY 
+                 : type === 'unlock' ? AUDIO_RESOURCES.UNLOCK 
+                 : AUDIO_RESOURCES.SUCCESS;
+      
+      if (!urls || urls.length === 0) return;
+
+      const randomUrl = urls[Math.floor(Math.random() * urls.length)];
+      const audio = new Audio(randomUrl);
+      audio.volume = 0.6;
+      
+      // Simple play attempt, catch error if blocked by browser policy
+      audio.play().catch(e => console.warn("Audio playback failed (interaction required?)", e));
+  }, []);
+
+
   // Check Achievements Logic
   const checkAchievements = () => {
       const newUnlocks: string[] = [];
@@ -201,7 +220,7 @@ export const useAppLogic = () => {
           if (unlocked) {
               newUnlocks.push(ach.id);
               setNewUnlocked(ach);
-              speak(`恭喜！解锁新勋章：${ach.title}`);
+              playRandomSound('unlock'); // Play unlock sound
               safeConfetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
           }
       });
@@ -217,40 +236,6 @@ export const useAppLogic = () => {
       }, 500);
       return () => clearTimeout(timeout);
   }, [streak, lifetimeEarnings, balance, transactions.length, logs]);
-
-  useEffect(() => {
-    const loadVoices = () => {
-        if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.getVoices();
-        }
-    };
-    loadVoices();
-    if (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-  }, []);
-
-  const speak = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    
-    if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-    }
-    window.speechSynthesis.cancel(); 
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'zh-CN';
-    utterance.rate = 1;
-    utterance.pitch = 1.1; 
-    
-    const voices = window.speechSynthesis.getVoices();
-    const zhVoice = voices.find(v => v.lang.includes('zh'));
-    if (zhVoice) {
-        utterance.voice = zhVoice;
-    }
-    
-    window.speechSynthesis.speak(utterance);
-  }, []);
 
   // --- Cloud Logic ---
   const handleCloudLoad = async (targetFamilyId: string, silent = false, scope = 'all') => {
@@ -604,12 +589,11 @@ export const useAppLogic = () => {
       if (isPenalty) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
         triggerRainConfetti();
-        speak(`哎呀，${task.title}，下次加油哦`);
+        playRandomSound('penalty');
       } else {
         setShowCelebration({ show: true, points: task.stars, type: 'success' });
         triggerRandomCelebration();
-        const name = userName || '小朋友';
-        speak(`${name}真棒，完成${task.title}`);
+        playRandomSound('success');
       }
     }
     setLogs({ ...logs, [dateKey]: newLog });
@@ -624,14 +608,14 @@ export const useAppLogic = () => {
               colors: ['#FF7EB3', '#7AFCB0', '#7FD8FE']
           });
           showToast(`成功兑换：${reward.title}`, 'success');
-          speak(`兑换成功，${reward.title}`);
+          playRandomSound('success');
       } catch (error) {
           console.error("Redeem error", error);
           showToast(`兑换成功：${reward.title}`, 'success');
       }
     } else {
       showToast(`星星不够哦！还需要 ${reward.cost - balance} 颗星星。`, 'error');
-      speak('星星不够哦');
+      playRandomSound('penalty');
     }
   };
 
@@ -665,7 +649,7 @@ export const useAppLogic = () => {
   const depositToWishlist = (goal: WishlistGoal, amount: number) => {
       if (balance < amount) {
           showToast('星星不够哦！', 'error');
-          speak('星星不够哦');
+          playRandomSound('penalty');
           return;
       }
       if (amount <= 0) return;
@@ -677,7 +661,7 @@ export const useAppLogic = () => {
               const newSaved = g.currentSaved + amount;
               const isCompleted = newSaved >= g.targetCost;
               if (isCompleted) {
-                   speak(`太棒了！心愿 ${g.title} 达成！`);
+                   playRandomSound('success');
                    triggerFireworks();
               }
               return { ...g, currentSaved: newSaved };
