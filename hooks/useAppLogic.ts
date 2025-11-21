@@ -1,6 +1,3 @@
-
-
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS, ACHIEVEMENTS, MYSTERY_BOX_COST, MYSTERY_BOX_REWARDS, AUDIO_RESOURCES } from '../constants';
@@ -154,7 +151,7 @@ export const useAppLogic = () => {
       }
   };
 
-  // --- Audio Player (Replacement for Speech Synthesis) ---
+  // --- Audio Player (With Fallback Logic) ---
   const playRandomSound = useCallback((type: 'success' | 'penalty' | 'unlock' = 'success') => {
       const urls = type === 'penalty' ? AUDIO_RESOURCES.PENALTY 
                  : type === 'unlock' ? AUDIO_RESOURCES.UNLOCK 
@@ -162,12 +159,30 @@ export const useAppLogic = () => {
       
       if (!urls || urls.length === 0) return;
 
+      // Try to pick a random one.
       const randomUrl = urls[Math.floor(Math.random() * urls.length)];
       const audio = new Audio(randomUrl);
       audio.volume = 0.6;
       
-      // Simple play attempt, catch error if blocked by browser policy
-      audio.play().catch(e => console.warn("Audio playback failed (interaction required?)", e));
+      // Add error handling to help user debug local files
+      audio.onerror = (e) => {
+          console.warn(`Audio failed to load: ${randomUrl}`);
+          console.warn("Hint: If this is a local file, make sure it is in the 'public' folder and referenced with a leading slash (e.g. '/audio/file.mp3').");
+          
+          // Simple fallback: if the random one failed and it was a local path, try the first online one if available
+          if (randomUrl.startsWith('/') && urls.some(u => u.startsWith('http'))) {
+              const fallbackUrl = urls.find(u => u.startsWith('http'));
+              if (fallbackUrl) {
+                  console.log("Attempting fallback to online audio:", fallbackUrl);
+                  new Audio(fallbackUrl).play().catch(err => console.error("Fallback failed", err));
+              }
+          }
+      };
+
+      audio.play().catch(e => {
+          // Auto-play policy errors are common on mobile if not triggered by touch
+          console.warn("Audio play blocked or failed", e);
+      });
   }, []);
 
 
