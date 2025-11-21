@@ -53,6 +53,7 @@ export const useAppLogic = () => {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
   const [isSyncReady, setIsSyncReady] = useState(false);
   const [isInteractionBlocked, setIsInteractionBlocked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // --- Celebration State ---
   const [showCelebration, setShowCelebration] = useState<{show: boolean, points: number, type: 'success' | 'penalty'}>({ 
@@ -203,14 +204,20 @@ export const useAppLogic = () => {
 
   // Tab refresh
   useEffect(() => {
-    if (familyId && isSyncReady && !isInteractionBlocked) {
-        let scope = 'all';
-        if (activeTab === 'daily') scope = 'daily';
-        if (activeTab === 'store') scope = 'store';
-        if (activeTab === 'calendar') scope = 'calendar';
-        if (activeTab === 'settings') scope = 'settings';
-        if (activeTab === 'avatar') scope = 'avatar';
-        handleCloudLoad(familyId, true, scope);
+    if (familyId && isSyncReady) {
+        const fetchTab = async () => {
+            setIsLoading(true);
+            let scope = 'all';
+            if (activeTab === 'daily') scope = 'daily';
+            if (activeTab === 'store') scope = 'store';
+            if (activeTab === 'calendar') scope = 'calendar';
+            if (activeTab === 'settings') scope = 'settings';
+            
+            // Keep silent=true to avoid confetti/toast spam, but use isLoading to show spinner
+            await handleCloudLoad(familyId, true, scope);
+            setIsLoading(false);
+        };
+        fetchTab();
     }
   }, [activeTab]);
 
@@ -491,7 +498,8 @@ export const useAppLogic = () => {
       tasks, rewards, logs, balance, transactions, avatar,
       syncStatus, isInteractionBlocked, showCelebration,
       dateKey: getDateKey(currentDate),
-      toast 
+      toast,
+      isLoading
     },
     actions: {
       setActiveTab, setCurrentDate, setUserName, setThemeKey, setFamilyId,

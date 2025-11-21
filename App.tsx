@@ -12,7 +12,7 @@ import { DailyView } from './components/tabs/DailyView';
 import { StoreView } from './components/tabs/StoreView';
 import { CalendarView } from './components/tabs/CalendarView';
 import { SettingsView } from './components/tabs/SettingsView';
-import { AvatarView } from './components/tabs/AvatarView';
+// import { AvatarView } from './components/tabs/AvatarView'; // Removed
 
 // Modals
 import { OnboardingModal } from './components/modals/OnboardingModal';
@@ -30,8 +30,17 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${activeTheme.bg || 'bg-[#FFF9F0]'} pb-28 transition-colors duration-500`}>
+      {/* Block interactions during critical tasks */}
       {state.isInteractionBlocked && <div className="fixed inset-0 z-[40] bg-transparent cursor-wait" />}
       
+      {/* Loading Overlay */}
+      {state.isLoading && (
+        <div className="fixed inset-0 z-[100] bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center cursor-wait transition-all duration-300 animate-fade-in">
+            <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-400 rounded-full animate-spin mb-3"></div>
+            <p className="font-cute text-slate-500 animate-pulse tracking-widest">加载中...</p>
+        </div>
+      )}
+
       <Toast 
         message={state.toast.message} 
         type={state.toast.type} 
@@ -66,15 +75,7 @@ export default function App() {
             />
         )}
 
-        {state.activeTab === 'avatar' && (
-            <AvatarView 
-                avatar={state.avatar}
-                balance={state.balance}
-                onBuy={actions.buyAvatarItem}
-                onEquip={actions.equipAvatarItem}
-                theme={activeTheme}
-            />
-        )}
+        {/* AvatarView Removed */}
 
         {state.activeTab === 'calendar' && (
            <CalendarView 
