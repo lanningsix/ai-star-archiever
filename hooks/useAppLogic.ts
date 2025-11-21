@@ -8,7 +8,7 @@ import { cloudService, DataScope } from '../services/cloud';
 import { ToastType } from '../components/Toast';
 
 export const useAppLogic = () => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings' | 'avatar'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'store' | 'calendar' | 'settings'>('daily');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // --- State ---
@@ -246,13 +246,6 @@ export const useAppLogic = () => {
     return () => clearTimeout(t);
   }, [userName, themeKey, familyId]);
 
-  useEffect(() => {
-    if (!familyId || !isSyncReady) return;
-    // Avatar changes often include balance changes, syncing both
-    const t = setTimeout(() => syncData('avatar', { avatar, balance }, true), 1000);
-    return () => clearTimeout(t);
-  }, [avatar, balance, familyId]);
-
   const getDateKey = (d: Date) => {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -370,14 +363,13 @@ export const useAppLogic = () => {
     }
   };
 
-  // Avatar Actions
+  // Avatar Actions (Retained logic but UI hidden)
   const buyAvatarItem = (item: AvatarItem) => {
       if (balance < item.cost) {
           showToast('星星不够哦！再做点任务吧。', 'error');
           return;
       }
       if (avatar.ownedItems.includes(item.id)) {
-          // Already owned, equip it
           equipAvatarItem(item);
           return;
       }
@@ -403,7 +395,6 @@ export const useAppLogic = () => {
 
   const equipAvatarItem = (item: AvatarItem) => {
     if (avatar.config[item.type] === item.id) {
-        // Unequip if already equipped (except body/skin maybe?)
         if (item.type !== 'body' && item.type !== 'skin') {
              setAvatar(prev => ({
                 ...prev,
@@ -438,7 +429,6 @@ export const useAppLogic = () => {
         await cloudService.saveData(fid, 'tasks', tasks);
         await cloudService.saveData(fid, 'rewards', rewards);
         await cloudService.saveData(fid, 'activity', { logs, balance, transactions });
-        await cloudService.saveData(fid, 'avatar', { avatar });
         
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);

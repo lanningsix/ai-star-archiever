@@ -12,7 +12,6 @@ import { DailyView } from './components/tabs/DailyView';
 import { StoreView } from './components/tabs/StoreView';
 import { CalendarView } from './components/tabs/CalendarView';
 import { SettingsView } from './components/tabs/SettingsView';
-// import { AvatarView } from './components/tabs/AvatarView'; // Removed
 
 // Modals
 import { OnboardingModal } from './components/modals/OnboardingModal';
@@ -74,8 +73,6 @@ export default function App() {
                 theme={activeTheme}
             />
         )}
-
-        {/* AvatarView Removed */}
 
         {state.activeTab === 'calendar' && (
            <CalendarView 

@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { CheckCircle2, ShoppingBag, Calendar as CalendarIcon, Settings, Shirt } from 'lucide-react';
+import { CheckCircle2, ShoppingBag, Calendar as CalendarIcon, Settings } from 'lucide-react';
 import { THEMES, ThemeKey } from '../styles/themes';
 
 interface NavBarProps {
-  activeTab: 'daily' | 'store' | 'calendar' | 'settings' | 'avatar';
-  setActiveTab: (tab: 'daily' | 'store' | 'calendar' | 'settings' | 'avatar') => void;
+  activeTab: 'daily' | 'store' | 'calendar' | 'settings';
+  setActiveTab: (tab: 'daily' | 'store' | 'calendar' | 'settings') => void;
   themeKey: ThemeKey;
 }
 
