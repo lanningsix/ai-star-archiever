@@ -8,6 +8,8 @@ export const CLOUD_API_URL = 'https://dundun.uno'
 export const AUDIO_RESOURCES = {
   SUCCESS: [
     'https://static-file.dundun.uno/audio/unbelievable.mp3', // Unbelievable
+    'https://static-oss.dundun.uno/e95cb0cd-abc1-4dea-b98b-738ece0c6812/f8c040a5-f3b1-4450-832d-811a4d2e3fc7.mp3',
+    'https://static-oss.dundun.uno/e95cb0cd-abc1-4dea-b98b-738ece0c6812/3b115ed5-2d0e-4cea-b3ab-0c547c895b12.mp3'
   ],
   PENALTY: [
     'https://static-file.dundun.uno/audio/fail.mp3', // 失败音效
