@@ -12,50 +12,30 @@ export const useAppLogic = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // --- State ---
-  const [userName, setUserName] = useState(() => localStorage.getItem('app_username') || '');
+  // DATA PERSISTENCE CHANGE: 
+  // Removed localStorage defaults for business data to prevent stale local data from overwriting cloud data.
+  // We only persist Family ID (Session) and Theme (Preference) locally.
+  
+  const [userName, setUserName] = useState(''); 
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => (localStorage.getItem('app_theme') as ThemeKey) || 'lemon');
   const [familyId, setFamilyId] = useState(() => localStorage.getItem('app_family_id') || '');
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('app_tasks');
-    return saved ? JSON.parse(saved) : INITIAL_TASKS;
-  });
+  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   
-  const [rewards, setRewards] = useState<Reward[]>(() => {
-    const saved = localStorage.getItem('app_rewards');
-    return saved ? JSON.parse(saved) : INITIAL_REWARDS;
-  });
+  const [rewards, setRewards] = useState<Reward[]>(INITIAL_REWARDS);
 
-  const [wishlist, setWishlist] = useState<WishlistGoal[]>(() => {
-    const saved = localStorage.getItem('app_wishlist');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [wishlist, setWishlist] = useState<WishlistGoal[]>([]);
 
-  const [logs, setLogs] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('app_logs');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [logs, setLogs] = useState<Record<string, string[]>>({});
 
-  const [balance, setBalance] = useState<number>(() => {
-    const saved = localStorage.getItem('app_balance');
-    return saved ? parseInt(saved) : 0;
-  });
+  const [balance, setBalance] = useState<number>(0);
 
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('app_transactions');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // New Stats State
-  const [lifetimeEarnings, setLifetimeEarnings] = useState<number>(() => {
-      const saved = localStorage.getItem('app_lifetime');
-      return saved ? parseInt(saved) : 0;
-  });
+  const [lifetimeEarnings, setLifetimeEarnings] = useState<number>(0);
 
-  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>(() => {
-      const saved = localStorage.getItem('app_achievements');
-      return saved ? JSON.parse(saved) : [];
-  });
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
 
   // --- Cloud Sync State ---
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
@@ -92,17 +72,11 @@ export const useAppLogic = () => {
   });
 
   // --- Persistence Effects ---
-  useEffect(() => localStorage.setItem('app_username', userName), [userName]);
+  // Only save config/session locally. Data is cloud-only.
   useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
-  useEffect(() => localStorage.setItem('app_tasks', JSON.stringify(tasks)), [tasks]);
-  useEffect(() => localStorage.setItem('app_rewards', JSON.stringify(rewards)), [rewards]);
-  useEffect(() => localStorage.setItem('app_wishlist', JSON.stringify(wishlist)), [wishlist]);
-  useEffect(() => localStorage.setItem('app_logs', JSON.stringify(logs)), [logs]);
-  useEffect(() => localStorage.setItem('app_balance', balance.toString()), [balance]);
-  useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
   useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
-  useEffect(() => localStorage.setItem('app_lifetime', lifetimeEarnings.toString()), [lifetimeEarnings]);
-  useEffect(() => localStorage.setItem('app_achievements', JSON.stringify(unlockedAchievements)), [unlockedAchievements]);
+  
+  // Removed: localStorage effects for tasks, rewards, logs, balance, transactions, etc.
 
   // --- Helpers ---
   const getDateKey = (d: Date) => {
@@ -381,7 +355,7 @@ export const useAppLogic = () => {
         };
         fetchTab();
     }
-  }, [activeTab, currentDate]); // Added currentDate dependency to fetch when date changes
+  }, [activeTab, currentDate]); 
 
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
@@ -415,8 +389,6 @@ export const useAppLogic = () => {
 
 
   // --- 15 VARIETIES OF CELEBRATION ANIMATIONS ---
-  // ... (Celebration functions omitted for brevity, they remain unchanged) ...
-  // 1. Star Burst
   const triggerStarConfetti = () => {
     const duration = 1000;
     const end = Date.now() + duration;
@@ -430,7 +402,6 @@ export const useAppLogic = () => {
     }, 250);
   };
   
-  // ... (Remaining animation functions are unchanged, keeping them in the block to ensure valid file)
   const triggerSideCannons = () => {
       const end = Date.now() + 1000;
       const colors = ['#a78bfa', '#f472b6', '#34d399', '#fbbf24'];
