@@ -189,6 +189,7 @@ export const useAppLogic = () => {
                }
                break;
             case 'wishlist_complete':
+               if (unlockedAchievements.includes(ach.id)) unlocked = true;
                break;
             case 'balance_level':
                if (balance >= ach.threshold) unlocked = true;
@@ -419,8 +420,14 @@ export const useAppLogic = () => {
     return () => clearTimeout(t);
   }, [userName, themeKey, familyId]);
 
-  // REMOVED: Auto-save for 'activity' (logs/balance/transactions). 
-  // We now use granular updates in toggleTask/redeemReward etc.
+  // Sync Unlocked Achievements to prevent repeated popups on reload
+  useEffect(() => {
+    if (!familyId || !isSyncReady || unlockedAchievements.length === 0) return;
+    const t = setTimeout(() => {
+        syncData('activity', { unlockedAchievements }, true);
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [unlockedAchievements, familyId]);
 
   // --- Animation Triggers ---
   const triggerStarConfetti = () => {
@@ -638,10 +645,14 @@ export const useAppLogic = () => {
       // We search for a transaction that matches the task, the date, and is not already revoked.
       const targetTxIndex = transactions.findIndex(t => {
           if (t.isRevoked) return false;
-          const sameDay = getDateKey(new Date(t.date)) === dateKey;
+          // Check if transaction date is same day as current view date
+          const txDate = new Date(t.date);
+          const txDateKey = getDateKey(txDate);
+          if (txDateKey !== dateKey) return false;
+
           // Match by ID (new data) or Description (legacy data)
-          const sameTask = t.taskId === task.id || t.description.endsWith(`: ${task.title}`);
-          return sameDay && sameTask;
+          const sameTask = t.taskId === task.id || (t.description.includes(task.title) && (t.type === 'EARN' || t.type === 'PENALTY'));
+          return sameTask;
       });
       
       if (targetTxIndex > -1) {

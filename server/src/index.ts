@@ -293,7 +293,7 @@ export default {
              }
           }
           else if (scope === 'activity') {
-             // Full sync for Manual Save
+             // Full sync for Manual Save (also used for achievements only update)
              const fieldsToUpdate = [];
              const values = [];
              
