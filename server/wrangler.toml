@@ -1,5 +1,5 @@
 name = "star-archiever-backend"
-main = "index.ts"
+main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
 # 绑定 D1
