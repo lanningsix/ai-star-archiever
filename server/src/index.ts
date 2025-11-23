@@ -162,7 +162,77 @@ export default {
             .bind(familyId, timestamp, timestamp)
           );
 
-          if (scope === 'tasks') {
+          // --- Granular Update Scopes ---
+          
+          if (scope === 'record_log') {
+             const { dateKey, taskId, action, transaction, balance, lifetimeEarnings } = data;
+             
+             // Update Settings (Balance & Lifetime)
+             statements.push(env.DB.prepare("UPDATE settings SET balance = ?, lifetime_earned = ?, updated_at = ? WHERE family_id = ?").bind(balance, lifetimeEarnings, timestamp, familyId));
+             
+             // Insert Transaction
+             if (transaction) {
+                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp));
+             }
+             
+             // Modify Log
+             if (action === 'add') {
+                  statements.push(env.DB.prepare("INSERT INTO task_logs (family_id, date_key, task_id, created_at) VALUES (?, ?, ?, ?)").bind(familyId, dateKey, taskId, timestamp));
+             } else {
+                  // Remove the log entry
+                  statements.push(env.DB.prepare("DELETE FROM task_logs WHERE family_id = ? AND date_key = ? AND task_id = ?").bind(familyId, dateKey, taskId));
+             }
+          }
+          else if (scope === 'record_transaction') {
+             const { transaction, balance, lifetimeEarnings } = data;
+             
+             // Update Settings
+             const updateSql = lifetimeEarnings !== undefined 
+                ? "UPDATE settings SET balance = ?, lifetime_earned = ?, updated_at = ? WHERE family_id = ?"
+                : "UPDATE settings SET balance = ?, updated_at = ? WHERE family_id = ?";
+             
+             const updateParams = lifetimeEarnings !== undefined
+                ? [balance, lifetimeEarnings, timestamp, familyId]
+                : [balance, timestamp, familyId];
+             
+             statements.push(env.DB.prepare(updateSql).bind(...updateParams));
+
+             // Insert Transaction
+             if (transaction) {
+                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp));
+             }
+          }
+          else if (scope === 'wishlist_update') {
+             const { goal, transaction, balance } = data;
+             
+             if (balance !== undefined) {
+                 statements.push(env.DB.prepare("UPDATE settings SET balance = ?, updated_at = ? WHERE family_id = ?").bind(balance, timestamp, familyId));
+             }
+             
+             if (transaction) {
+                 statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp));
+             }
+             
+             // Upsert Goal
+             statements.push(env.DB.prepare("INSERT OR REPLACE INTO wishlist_goals (id, family_id, title, target_cost, current_saved, icon, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(goal.id, familyId, goal.title, goal.targetCost, goal.currentSaved, goal.icon, timestamp));
+          }
+          else if (scope === 'wishlist_delete') {
+             const { goalId, transaction, balance } = data;
+             
+             if (balance !== undefined) {
+                 statements.push(env.DB.prepare("UPDATE settings SET balance = ?, updated_at = ? WHERE family_id = ?").bind(balance, timestamp, familyId));
+             }
+             
+             if (transaction) {
+                 statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp));
+             }
+             
+             statements.push(env.DB.prepare("DELETE FROM wishlist_goals WHERE family_id = ? AND id = ?").bind(familyId, goalId));
+          }
+
+          // --- Bulk/Original Scopes ---
+
+          else if (scope === 'tasks') {
              if (Array.isArray(data)) {
                 statements.push(env.DB.prepare("DELETE FROM tasks WHERE family_id = ?").bind(familyId));
                 const insertStmt = env.DB.prepare("INSERT INTO tasks (id, family_id, title, category, stars, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
@@ -181,6 +251,7 @@ export default {
              }
           }
           else if (scope === 'wishlist') {
+             // Bulk wishlist sync (still used for manual save)
              if (Array.isArray(data)) {
                 statements.push(env.DB.prepare("DELETE FROM wishlist_goals WHERE family_id = ?").bind(familyId));
                 const insertStmt = env.DB.prepare("INSERT INTO wishlist_goals (id, family_id, title, target_cost, current_saved, icon, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -208,7 +279,7 @@ export default {
              }
           }
           else if (scope === 'activity') {
-             // Update balance, lifetime stats, logs, transactions
+             // Full sync for Manual Save
              const fieldsToUpdate = [];
              const values = [];
              

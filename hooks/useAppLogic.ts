@@ -12,10 +12,6 @@ export const useAppLogic = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // --- State ---
-  // DATA PERSISTENCE CHANGE: 
-  // Removed localStorage defaults for business data to prevent stale local data from overwriting cloud data.
-  // We only persist Family ID (Session) and Theme (Preference) locally.
-  
   const [userName, setUserName] = useState(''); 
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => (localStorage.getItem('app_theme') as ThemeKey) || 'lemon');
   const [familyId, setFamilyId] = useState(() => localStorage.getItem('app_family_id') || '');
@@ -84,8 +80,6 @@ export const useAppLogic = () => {
   useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
   useEffect(() => localStorage.setItem('app_family_id', familyId), [familyId]);
   
-  // Removed: localStorage effects for tasks, rewards, logs, balance, transactions, etc.
-
   // --- Helpers ---
   const getDateKey = (d: Date) => {
     const year = d.getFullYear();
@@ -160,7 +154,6 @@ export const useAppLogic = () => {
       };
 
       audio.play().catch(e => {
-          // Auto-play policy errors are common on mobile if not triggered by touch
           console.warn("Audio play blocked or failed", e);
       });
   }, []);
@@ -209,7 +202,6 @@ export const useAppLogic = () => {
                if (boxCount >= ach.threshold) unlocked = true;
                break;
             case 'avatar_count':
-               // Feature removed, skip check
                break;
           }
           
@@ -222,10 +214,7 @@ export const useAppLogic = () => {
       if (newUnlocks.length > 0) {
           setUnlockedAchievements(prev => [...prev, ...newUnlocks]);
           
-          // If we have a new unlock, decide whether to show immediately or queue
           if (lastUnlockedAch) {
-             // If celebration (stars animation) is currently showing, wait.
-             // Use REF to check current status because this might run in a closure where state is stale
              if (showCelebrationRef.current.show) {
                  setPendingUnlocked(lastUnlockedAch);
              } else {
@@ -237,10 +226,8 @@ export const useAppLogic = () => {
       }
   };
 
-  // Watch for when celebration ends to trigger pending achievement
   useEffect(() => {
       if (!showCelebration.show && pendingUnlocked) {
-          // Small delay to ensure visual separation
           const timer = setTimeout(() => {
               setNewUnlocked(pendingUnlocked);
               setPendingUnlocked(null);
@@ -282,10 +269,6 @@ export const useAppLogic = () => {
         // Merge or Set Transactions
         if (data.transactions) {
              if (scope === 'activity' && startDate && endDate) {
-                 // For stats queries with explicit ranges, we probably want to visualize exactly this data.
-                 // However, transactions are also used for 'Calendar' and 'Daily' summary.
-                 // We will merge them to ensure we don't lose other cached data, but sort them.
-                 // NOTE: If the set is very large, this might be heavy, but for this app scale it's fine.
                  setTransactions(prev => {
                      const newTx = data.transactions || [];
                      const existingIds = new Set(prev.map(t => t.id));
@@ -330,11 +313,12 @@ export const useAppLogic = () => {
     }
   };
 
-  const syncData = async (scope: DataScope, data: any, silent = false) => {
+  const syncData = async (scope: DataScope | 'record_log' | 'record_transaction' | 'wishlist_update' | 'wishlist_delete', data: any, silent = false) => {
     if (!familyId) return;
     if (!silent) setSyncStatus('syncing');
     
-    const success = await cloudService.saveData(familyId, scope, data);
+    // Optimistic UI for some actions is handled by caller updating state first
+    const success = await cloudService.saveData(familyId, scope as DataScope, data);
     
     if (success) {
         setSyncStatus('saved');
@@ -382,7 +366,6 @@ export const useAppLogic = () => {
                     start.setHours(0,0,0,0);
                     end.setHours(23,59,59,999);
                 } else if (statsConfig.type === 'week') {
-                    // Start of week (Monday)
                     const day = start.getDay();
                     const diff = start.getDate() - day + (day === 0 ? -6 : 1);
                     start.setDate(diff);
@@ -417,6 +400,7 @@ export const useAppLogic = () => {
     }
   }, [activeTab, currentDate, statsConfig]); 
 
+  // --- Auto-Save Configs (Low Frequency) ---
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
     const t = setTimeout(() => syncData('tasks', tasks, true), 500);
@@ -431,24 +415,14 @@ export const useAppLogic = () => {
 
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
-    const t = setTimeout(() => syncData('wishlist', wishlist, true), 500);
-    return () => clearTimeout(t);
-  }, [wishlist, familyId]);
-
-  useEffect(() => {
-    if (!familyId || !isSyncReady) return;
-    const t = setTimeout(() => syncData('activity', { logs, balance, transactions, lifetimeEarnings, unlockedAchievements }, true), 500);
-    return () => clearTimeout(t);
-  }, [logs, balance, transactions, lifetimeEarnings, unlockedAchievements, familyId]);
-
-  useEffect(() => {
-    if (!familyId || !isSyncReady) return;
     const t = setTimeout(() => syncData('settings', { userName, themeKey }, true), 1500);
     return () => clearTimeout(t);
   }, [userName, themeKey, familyId]);
 
+  // REMOVED: Auto-save for 'activity' (logs/balance/transactions). 
+  // We now use granular updates in toggleTask/redeemReward etc.
 
-  // --- 15 VARIETIES OF CELEBRATION ANIMATIONS ---
+  // --- Animation Triggers ---
   const triggerStarConfetti = () => {
     const duration = 1000;
     const end = Date.now() + duration;
@@ -607,13 +581,25 @@ export const useAppLogic = () => {
     }());
   };
 
-  const updateBalance = (amount: number, description: string, dateContext?: Date) => {
-    setBalance(prev => prev + amount);
+  // Helper to calculate transaction, update local state, and return data for cloud sync
+  const handleTransaction = (amount: number, description: string, dateContext?: Date) => {
+    // 1. Calculate New State Values
+    const newBalance = balance + amount;
+    let newLifetime = lifetimeEarnings;
     
+    // Logic: Only add to lifetime earnings if it's a positive gain (not a refund/undo)
     if (amount > 0 && !description.includes('退回') && !description.includes('撤销')) {
-        setLifetimeEarnings(prev => prev + amount);
+        newLifetime += amount;
+    }
+    // Logic: If undoing a completed task (which gave +stars), we should subtract from lifetime if possible, 
+    // but usually lifetime tracks "total ever earned". 
+    // If we want strict "Total Valid Earned", we should subtract. 
+    // Previous logic only added. Let's make it consistent: if we subtract stars because of undo, we reduce lifetime.
+    if (amount < 0 && description.includes('撤销') && description.includes('完成')) {
+        newLifetime = Math.max(0, newLifetime + amount); // amount is negative
     }
 
+    // 2. Create Transaction Object
     let txDate = new Date();
     if (dateContext) {
         txDate = new Date(dateContext);
@@ -622,6 +608,7 @@ export const useAppLogic = () => {
         txDate.setMinutes(now.getMinutes());
         txDate.setSeconds(now.getSeconds());
     }
+    
     const newTx: Transaction = {
       id: Date.now().toString(),
       date: txDate.toISOString(),
@@ -629,7 +616,13 @@ export const useAppLogic = () => {
       amount,
       type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买') || description.includes('存入') || description.includes('盲盒')) ? 'SPEND' : 'PENALTY'
     };
+
+    // 3. Update Local State
+    setBalance(newBalance);
+    setLifetimeEarnings(newLifetime);
     setTransactions(prev => [newTx, ...prev]);
+
+    return { newBalance, newLifetime, newTx };
   };
 
   // --- Actions ---
@@ -639,19 +632,23 @@ export const useAppLogic = () => {
     const isCompleted = currentLog.includes(task.id);
 
     let newLog;
+    let action: 'add' | 'remove';
+    let txData;
+
     if (isCompleted) {
+      // Undo
+      action = 'remove';
       newLog = currentLog.filter(id => id !== task.id);
-      updateBalance(-task.stars, `撤销: ${task.title}`, currentDate);
-      if (task.stars > 0) {
-          setLifetimeEarnings(prev => Math.max(0, prev - task.stars));
-      }
+      txData = handleTransaction(-task.stars, `撤销: ${task.title}`, currentDate);
     } else {
+      // Complete
+      action = 'add';
       setIsInteractionBlocked(true);
       newLog = [...currentLog, task.id];
       
       const isPenalty = task.category === TaskCategory.PENALTY;
       const prefix = isPenalty ? '扣分' : '完成';
-      updateBalance(task.stars, `${prefix}: ${task.title}`, currentDate);
+      txData = handleTransaction(task.stars, `${prefix}: ${task.title}`, currentDate);
       
       if (isPenalty) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
@@ -663,13 +660,36 @@ export const useAppLogic = () => {
         playRandomSound('success');
       }
     }
+    
+    // Update Local Logs
     setLogs({ ...logs, [dateKey]: newLog });
+
+    // Sync Granular Log Action
+    if (familyId && isSyncReady) {
+        syncData('record_log', {
+            dateKey,
+            taskId: task.id,
+            action,
+            transaction: txData.newTx,
+            balance: txData.newBalance,
+            lifetimeEarnings: txData.newLifetime
+        }, true);
+    }
   };
 
   const redeemReward = (reward: Reward) => {
     if (balance >= reward.cost) {
       try {
-          updateBalance(-reward.cost, `兑换: ${reward.title}`);
+          const txData = handleTransaction(-reward.cost, `兑换: ${reward.title}`);
+          
+          if (familyId && isSyncReady) {
+              syncData('record_transaction', {
+                  transaction: txData.newTx,
+                  balance: txData.newBalance,
+                  lifetimeEarnings: txData.newLifetime
+              }, true);
+          }
+
           safeConfetti({
               particleCount: 100, spread: 70, origin: { y: 0.6 },
               colors: ['#FF7EB3', '#7AFCB0', '#7FD8FE']
@@ -678,7 +698,6 @@ export const useAppLogic = () => {
           playRandomSound('success');
       } catch (error) {
           console.error("Redeem error", error);
-          showToast(`兑换成功：${reward.title}`, 'success');
       }
     } else {
       showToast(`星星不够哦！还需要 ${reward.cost - balance} 颗星星。`, 'error');
@@ -692,8 +711,22 @@ export const useAppLogic = () => {
           return;
       }
 
-      updateBalance(-MYSTERY_BOX_COST, '开启神秘盲盒');
+      // 1. Deduct Cost
+      let txData = handleTransaction(-MYSTERY_BOX_COST, '开启神秘盲盒');
+      let finalBalance = txData.newBalance;
+      let finalLifetime = txData.newLifetime;
       
+      // Sync deduction immediately? Or batch?
+      // Better to sync deduction now in case user closes app before reward
+      if (familyId && isSyncReady) {
+          syncData('record_transaction', {
+              transaction: txData.newTx,
+              balance: finalBalance,
+              lifetimeEarnings: finalLifetime
+          }, true);
+      }
+      
+      // 2. Select Reward
       const totalWeight = MYSTERY_BOX_REWARDS.reduce((acc, r) => acc + r.weight, 0);
       let random = Math.random() * totalWeight;
       let selected = MYSTERY_BOX_REWARDS[0];
@@ -706,8 +739,22 @@ export const useAppLogic = () => {
           random -= r.weight;
       }
 
+      // 3. Apply Bonus if any
       if (selected.bonusStars) {
-          updateBalance(selected.bonusStars, '盲盒大奖');
+          const bonusTxData = handleTransaction(selected.bonusStars, '盲盒大奖');
+          finalBalance = bonusTxData.newBalance;
+          finalLifetime = bonusTxData.newLifetime;
+          
+          if (familyId && isSyncReady) {
+             // Small delay to ensure order?
+             setTimeout(() => {
+                 syncData('record_transaction', {
+                    transaction: bonusTxData.newTx,
+                    balance: finalBalance,
+                    lifetimeEarnings: finalLifetime
+                 }, true);
+             }, 100);
+          }
       }
 
       setMysteryReward(selected);
@@ -721,36 +768,61 @@ export const useAppLogic = () => {
       }
       if (amount <= 0) return;
 
-      updateBalance(-amount, `存入心愿: ${goal.title}`);
+      const txData = handleTransaction(-amount, `存入心愿: ${goal.title}`);
       
+      let updatedGoal = goal;
       const updatedWishlist = wishlist.map(g => {
           if (g.id === goal.id) {
               const newSaved = g.currentSaved + amount;
+              updatedGoal = { ...g, currentSaved: newSaved };
+              
               const isCompleted = newSaved >= g.targetCost;
               if (isCompleted) {
                    playRandomSound('success');
                    triggerFireworks();
               }
-              return { ...g, currentSaved: newSaved };
+              return updatedGoal;
           }
           return g;
       });
       
       setWishlist(updatedWishlist);
       showToast(`成功存入 ${amount} 颗星星`, 'success');
+
+      if (familyId && isSyncReady) {
+          syncData('wishlist_update', {
+              goal: updatedGoal,
+              transaction: txData.newTx,
+              balance: txData.newBalance
+          }, true);
+      }
   };
 
   const addWishlistGoal = (goal: WishlistGoal) => {
       setWishlist([...wishlist, goal]);
+      if (familyId && isSyncReady) {
+          // New goal, no transaction, no balance change
+          syncData('wishlist_update', { goal }, true);
+      }
   };
 
   const deleteWishlistGoal = (id: string) => {
       const goal = wishlist.find(g => g.id === id);
+      let txData;
+      
       if (goal && goal.currentSaved > 0) {
-          updateBalance(goal.currentSaved, `退回心愿存款: ${goal.title}`);
+          txData = handleTransaction(goal.currentSaved, `退回心愿存款: ${goal.title}`);
           showToast(`退回了 ${goal.currentSaved} 颗星星`, 'info');
       }
       setWishlist(wishlist.filter(g => g.id !== id));
+
+      if (familyId && isSyncReady) {
+          syncData('wishlist_delete', {
+              goalId: id,
+              transaction: txData?.newTx,
+              balance: txData?.newBalance
+          }, true);
+      }
   };
 
   const createFamily = () => {
