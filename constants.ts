@@ -1,8 +1,9 @@
+
 import { Task, TaskCategory, Reward, AvatarItem, Achievement } from './types'
 
 // [CLOUDFLARE CONFIG]
 // Cloudflare Worker 后端地址
-export const CLOUD_API_URL = 'https://dundun.uno'
+export const CLOUD_API_URL = 'https://star-server.dundun.uno'
 
 // --- AUDIO RESOURCES ---
 export const AUDIO_RESOURCES = {
@@ -341,7 +342,6 @@ export const ACHIEVEMENTS: Achievement[] = [
     icon: '🧹',
     conditionType: 'category_count',
     threshold: 10,
-    categoryFilter: TaskCategory.BONUS,
   },
   {
     id: 'STREAK_7',

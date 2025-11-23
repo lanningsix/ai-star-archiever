@@ -4,17 +4,16 @@ import { BarChart2, PieChart, TrendingUp, Award, Zap, ShoppingBag, ArrowDown, Ar
 import { Task, TaskCategory, Transaction, Achievement } from '../../types';
 import { Theme } from '../../styles/themes';
 import { CATEGORY_STYLES, ACHIEVEMENTS } from '../../constants';
-import { useAppLogic } from '../../hooks/useAppLogic'; // We need props actually, not hook usage here directly, but the parent passes props
 
 interface StatsViewProps {
   tasks: Task[];
   logs: Record<string, string[]>;
   transactions: Transaction[];
-  currentDate: Date; // This acts as the anchor date in app logic
+  currentDate: Date;
   theme: Theme;
   unlockedAchievements?: string[];
   onViewAchievement: (ach: Achievement) => void;
-  // Stats Config Props (Passed from parent's state.statsConfig)
+  // Stats Config Props
   statsConfig?: {
       type: 'day' | 'week' | 'month' | 'custom';
       date: Date;
@@ -29,9 +28,20 @@ export const StatsView: React.FC<StatsViewProps> = ({
     statsConfig = { type: 'week', date: new Date() }, setStatsConfig 
 }) => {
   
-  // Helper to format date string for inputs
-  const toDateStr = (d: Date) => {
-    return d.toISOString().split('T')[0];
+  // Helper to format date string for inputs (Local Time)
+  const toDateInputValue = (d: Date) => {
+    if (!d) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const toMonthInputValue = (d: Date) => {
+    if (!d) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
   };
 
   const handleTypeChange = (type: 'day' | 'week' | 'month' | 'custom') => {
@@ -42,13 +52,25 @@ export const StatsView: React.FC<StatsViewProps> = ({
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (setStatsConfig && e.target.value) {
-          setStatsConfig({ ...statsConfig, date: new Date(e.target.value) });
+          const val = e.target.value;
+          let newDate = new Date();
+          
+          if (val.length === 7) { // YYYY-MM
+             const [y, m] = val.split('-').map(Number);
+             newDate = new Date(y, m - 1, 1);
+          } else { // YYYY-MM-DD
+             const [y, m, d] = val.split('-').map(Number);
+             newDate = new Date(y, m - 1, d);
+          }
+          setStatsConfig({ ...statsConfig, date: newDate });
       }
   };
   
   const handleCustomDateChange = (field: 'customStart' | 'customEnd', val: string) => {
       if (setStatsConfig && val) {
-          setStatsConfig({ ...statsConfig, [field]: new Date(val) });
+          const [y, m, d] = val.split('-').map(Number);
+          const newDate = new Date(y, m - 1, d);
+          setStatsConfig({ ...statsConfig, [field]: newDate });
       }
   };
 
@@ -64,7 +86,6 @@ export const StatsView: React.FC<StatsViewProps> = ({
 
   // Process Data
   const stats = useMemo(() => {
-    // The data range to DISPLAY (Buckets)
     let start = new Date(statsConfig.date);
     let end = new Date(statsConfig.date);
     
@@ -142,9 +163,6 @@ export const StatsView: React.FC<StatsViewProps> = ({
             dataPoints.push({ label: `${i}日`, earned: 0, spent: 0, penalty: 0, startCtx: s, endCtx: e });
         }
     } else if (statsConfig.type === 'custom') {
-         // Simple linear bucketing for custom range (e.g. daily if < 30 days, else weekly)
-         // For simplicity, just aggregate totals or use dynamic buckets? 
-         // Let's do daily buckets if <= 14 days, otherwise just total summary for now or simplified segments
          const diffTime = Math.abs(end.getTime() - start.getTime());
          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
          
@@ -156,7 +174,6 @@ export const StatsView: React.FC<StatsViewProps> = ({
                  dataPoints.push({ label: `${d.getMonth()+1}/${d.getDate()}`, earned: 0, spent: 0, penalty: 0, startCtx: s, endCtx: e });
              }
          } else {
-             // Just one big bucket for now to avoid UI overflow
              dataPoints.push({ label: '合计', earned: 0, spent: 0, penalty: 0, startCtx: start, endCtx: end });
          }
     }
@@ -167,7 +184,6 @@ export const StatsView: React.FC<StatsViewProps> = ({
     let totalPenalty = 0;
     let categoryCounts: Record<string, number> = {};
 
-    // Filter relevant transactions (ensure we only use what's loaded, which should be correct due to server fetch)
     const relevantTx = transactions.filter(tx => {
         const txDate = new Date(tx.date);
         return txDate >= start && txDate <= end;
@@ -181,15 +197,12 @@ export const StatsView: React.FC<StatsViewProps> = ({
         const isShop = tx.description.includes('兑换') || tx.description.includes('购买');
         const isUndo = tx.description.includes('撤销');
         
-        // Logic to categorize
         if (bucket) {
             if (tx.amount > 0) {
-                 // Earned (Positive transaction)
                  if (!isUndo) {
                      bucket.earned += amount;
                      totalEarned += amount;
                  } else {
-                     // Undo of a negative transaction (Spend or Penalty)
                      if (isShop) {
                          bucket.spent -= amount;
                          totalSpent -= amount;
@@ -199,36 +212,29 @@ export const StatsView: React.FC<StatsViewProps> = ({
                      }
                  }
             } else {
-                // Negative transaction
                 if (isUndo) {
-                    // Undo of an Earn
                     bucket.earned -= amount;
                     totalEarned -= amount;
                 } else if (isShop) {
-                    // Shopping
                     bucket.spent += amount;
                     totalSpent += amount;
                 } else {
-                    // Penalty task
                     bucket.penalty += amount;
                     totalPenalty += amount;
                 }
             }
         }
         
-        // Category Counting
         if (tx.amount > 0 && !isUndo) {
              const task = tasks.find(t => tx.description.includes(t.title));
              if (task) {
                  categoryCounts[task.category] = (categoryCounts[task.category] || 0) + 1;
              }
         } else if (tx.amount < 0 && !isUndo && !isShop) {
-             // Count penalties
              categoryCounts[TaskCategory.PENALTY] = (categoryCounts[TaskCategory.PENALTY] || 0) + 1;
         }
     });
 
-    // Ensure no negatives in display data
     totalEarned = Math.max(0, totalEarned);
     totalSpent = Math.max(0, totalSpent);
     totalPenalty = Math.max(0, totalPenalty);
@@ -272,36 +278,57 @@ export const StatsView: React.FC<StatsViewProps> = ({
              {/* Date Picker Area */}
              <div className="flex items-center justify-center gap-3">
                  <Calendar size={18} className="text-slate-400" />
-                 {statsConfig.type !== 'custom' ? (
+                 
+                 {statsConfig.type === 'day' && (
                      <input 
                         type="date"
-                        value={toDateStr(statsConfig.date)}
+                        value={toDateInputValue(statsConfig.date)}
                         onChange={handleDateChange}
                         className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 font-bold text-sm outline-none focus:border-blue-400"
                      />
-                 ) : (
+                 )}
+
+                 {statsConfig.type === 'week' && (
+                     <div className="flex flex-col items-center">
+                        <input 
+                            type="date"
+                            value={toDateInputValue(statsConfig.date)}
+                            onChange={handleDateChange}
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 font-bold text-sm outline-none focus:border-blue-400"
+                        />
+                        <div className="text-[10px] text-slate-400 mt-1 font-bold">
+                            (选中日期所在周: {getStartOfWeek(statsConfig.date).toLocaleDateString()} 起)
+                        </div>
+                     </div>
+                 )}
+
+                 {statsConfig.type === 'month' && (
+                     <input 
+                        type="month"
+                        value={toMonthInputValue(statsConfig.date)}
+                        onChange={handleDateChange}
+                        className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 font-bold text-sm outline-none focus:border-blue-400"
+                     />
+                 )}
+
+                 {statsConfig.type === 'custom' && (
                      <div className="flex items-center gap-2">
                          <input 
                             type="date"
-                            value={statsConfig.customStart ? toDateStr(statsConfig.customStart) : ''}
+                            value={statsConfig.customStart ? toDateInputValue(statsConfig.customStart) : ''}
                             onChange={(e) => handleCustomDateChange('customStart', e.target.value)}
                             className="w-32 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 font-bold text-xs outline-none focus:border-blue-400"
                          />
                          <span className="text-slate-300">-</span>
                          <input 
                             type="date"
-                            value={statsConfig.customEnd ? toDateStr(statsConfig.customEnd) : ''}
+                            value={statsConfig.customEnd ? toDateInputValue(statsConfig.customEnd) : ''}
                             onChange={(e) => handleCustomDateChange('customEnd', e.target.value)}
                             className="w-32 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 font-bold text-xs outline-none focus:border-blue-400"
                          />
                      </div>
                  )}
              </div>
-             {statsConfig.type === 'week' && (
-                 <div className="text-center text-[10px] text-slate-400 mt-2 font-bold">
-                     (选中日期所在周: {getStartOfWeek(statsConfig.date).toLocaleDateString()} 起)
-                 </div>
-             )}
           </div>
       </div>
 
