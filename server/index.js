@@ -37,6 +37,8 @@ export default {
           const scope = url.searchParams.get("scope") || "all"; // 'all', 'daily', 'store', 'calendar', 'avatar', 'wishlist'
           const month = url.searchParams.get("month"); // Optional: YYYY-MM
           const dateParam = url.searchParams.get("date"); // Optional: YYYY-MM-DD
+          const startDate = url.searchParams.get("startDate"); // Optional: ISO String
+          const endDate = url.searchParams.get("endDate"); // Optional: ISO String
 
           // 1. 获取基础设置 (Always fetch settings for balance/theme/avatar/stats)
           const settings = await env.DB.prepare("SELECT * FROM settings WHERE family_id = ?").bind(familyId).first();
@@ -76,8 +78,16 @@ export default {
               let txSql = "SELECT * FROM transactions WHERE family_id = ?";
               const params = [familyId];
 
-              if (dateParam) {
-                  // Filter by specific date
+              if (startDate && endDate) {
+                  // Filter by specific date range (ISO strings)
+                  // Assuming date column stores ISO string "YYYY-MM-DDTHH:mm:ss.sssZ"
+                  // String comparison works for ISO format
+                  txSql += " AND date >= ? AND date <= ?";
+                  params.push(startDate);
+                  params.push(endDate);
+                  txSql += " ORDER BY created_at DESC";
+              } else if (dateParam) {
+                  // Filter by specific date (prefix match YYYY-MM-DD)
                   txSql += " AND date LIKE ?";
                   params.push(`${dateParam}%`);
                   txSql += " ORDER BY created_at DESC";
@@ -88,7 +98,6 @@ export default {
                   txSql += " ORDER BY created_at DESC";
               } else {
                   // If no date/month provided, fetch recent history with a much larger limit
-                  // Increased from 100 to 5000 to prevent missing records
                   txSql += " ORDER BY created_at DESC LIMIT 5000";
               }
 

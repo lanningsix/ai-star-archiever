@@ -43,6 +43,14 @@ export const useAppLogic = () => {
   const [isInteractionBlocked, setIsInteractionBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('app_family_id'));
 
+  // --- Stats Configuration State ---
+  const [statsConfig, setStatsConfig] = useState<{
+      type: 'day' | 'week' | 'month' | 'custom';
+      date: Date;
+      customStart?: Date;
+      customEnd?: Date;
+  }>({ type: 'week', date: new Date() });
+
   // --- Celebration State ---
   const [showCelebration, setShowCelebration] = useState<{show: boolean, points: number, type: 'success' | 'penalty'}>({ 
     show: false, 
@@ -251,12 +259,12 @@ export const useAppLogic = () => {
   }, [streak, lifetimeEarnings, balance, transactions.length, logs]);
 
   // --- Cloud Logic ---
-  const handleCloudLoad = async (targetFamilyId: string, silent = false, scope = 'all', date?: string) => {
+  const handleCloudLoad = async (targetFamilyId: string, silent = false, scope = 'all', date?: string, startDate?: string, endDate?: string) => {
     if (!targetFamilyId) return;
     if (!silent) setSyncStatus('syncing');
 
     try {
-      const data = await cloudService.loadData(targetFamilyId, scope, date);
+      const data = await cloudService.loadData(targetFamilyId, scope, date, startDate, endDate);
       if (data) {
         setIsSyncReady(false);
 
@@ -271,14 +279,27 @@ export const useAppLogic = () => {
 
         if (data.balance !== undefined) setBalance(data.balance);
         
-        // Merge transactions
+        // Merge or Set Transactions
         if (data.transactions) {
-             setTransactions(prev => {
-                 const newTx = data.transactions || [];
-                 const existingIds = new Set(prev.map(t => t.id));
-                 const uniqueNew = newTx.filter(t => !existingIds.has(t.id));
-                 return [...prev, ...uniqueNew].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-             });
+             if (scope === 'activity' && startDate && endDate) {
+                 // For stats queries with explicit ranges, we probably want to visualize exactly this data.
+                 // However, transactions are also used for 'Calendar' and 'Daily' summary.
+                 // We will merge them to ensure we don't lose other cached data, but sort them.
+                 // NOTE: If the set is very large, this might be heavy, but for this app scale it's fine.
+                 setTransactions(prev => {
+                     const newTx = data.transactions || [];
+                     const existingIds = new Set(prev.map(t => t.id));
+                     const uniqueNew = newTx.filter(t => !existingIds.has(t.id));
+                     return [...prev, ...uniqueNew].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                 });
+             } else {
+                 setTransactions(prev => {
+                     const newTx = data.transactions || [];
+                     const existingIds = new Set(prev.map(t => t.id));
+                     const uniqueNew = newTx.filter(t => !existingIds.has(t.id));
+                     return [...prev, ...uniqueNew].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                 });
+             }
         }
 
         if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
@@ -337,6 +358,8 @@ export const useAppLogic = () => {
             setIsLoading(true);
             let scope = 'all';
             let dateParam = undefined;
+            let startDateParam = undefined;
+            let endDateParam = undefined;
 
             if (activeTab === 'daily') {
                  scope = 'daily';
@@ -348,14 +371,51 @@ export const useAppLogic = () => {
                  dateParam = getDateKey(currentDate);
             }
             if (activeTab === 'settings') scope = 'settings';
-            if (activeTab === 'stats') scope = 'activity';
             
-            await handleCloudLoad(familyId, true, scope, dateParam);
+            if (activeTab === 'stats') {
+                scope = 'activity';
+                // Calculate date range based on statsConfig
+                let start = new Date(statsConfig.date);
+                let end = new Date(statsConfig.date);
+
+                if (statsConfig.type === 'day') {
+                    start.setHours(0,0,0,0);
+                    end.setHours(23,59,59,999);
+                } else if (statsConfig.type === 'week') {
+                    // Start of week (Monday)
+                    const day = start.getDay();
+                    const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+                    start.setDate(diff);
+                    start.setHours(0,0,0,0);
+                    
+                    end = new Date(start);
+                    end.setDate(end.getDate() + 6);
+                    end.setHours(23,59,59,999);
+                } else if (statsConfig.type === 'month') {
+                    start.setDate(1);
+                    start.setHours(0,0,0,0);
+                    
+                    end = new Date(start);
+                    end.setMonth(end.getMonth() + 1);
+                    end.setDate(0);
+                    end.setHours(23,59,59,999);
+                } else if (statsConfig.type === 'custom' && statsConfig.customStart && statsConfig.customEnd) {
+                    start = new Date(statsConfig.customStart);
+                    start.setHours(0,0,0,0);
+                    end = new Date(statsConfig.customEnd);
+                    end.setHours(23,59,59,999);
+                }
+
+                startDateParam = start.toISOString();
+                endDateParam = end.toISOString();
+            }
+            
+            await handleCloudLoad(familyId, true, scope, dateParam, startDateParam, endDateParam);
             setIsLoading(false);
         };
         fetchTab();
     }
-  }, [activeTab, currentDate]); 
+  }, [activeTab, currentDate, statsConfig]); 
 
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
@@ -787,7 +847,8 @@ export const useAppLogic = () => {
       dateKey: getDateKey(currentDate),
       toast,
       isLoading,
-      mysteryReward
+      mysteryReward,
+      statsConfig,
     },
     actions: {
       setActiveTab, setCurrentDate, setUserName, setThemeKey, setFamilyId,
@@ -797,6 +858,7 @@ export const useAppLogic = () => {
       createFamily, manualSaveAll, handleCloudLoad, handleStartAdventure, handleJoinFamily, resetData,
       setShowCelebration, setNewUnlocked,
       showToast, hideToast,
+      setStatsConfig,
     }
   };
 };

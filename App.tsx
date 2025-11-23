@@ -192,6 +192,8 @@ export default function App() {
                 theme={activeTheme}
                 unlockedAchievements={state.unlockedAchievements}
                 onViewAchievement={setViewAchievement}
+                statsConfig={state.statsConfig}
+                setStatsConfig={actions.setStatsConfig}
             />
         )}
 

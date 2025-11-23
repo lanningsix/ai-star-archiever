@@ -1,9 +1,0 @@
-name = "star-archiever-backend"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
-
-# 绑定 D1
-[[d1_databases]]
-binding = "DB"
-database_name = "mytest"
-database_id = "1bd0749f-01d5-4a10-bba6-670f91041534"

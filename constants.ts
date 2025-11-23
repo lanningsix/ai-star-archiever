@@ -2,7 +2,7 @@ import { Task, TaskCategory, Reward, AvatarItem, Achievement } from './types'
 
 // [CLOUDFLARE CONFIG]
 // Cloudflare Worker 后端地址
-export const CLOUD_API_URL = 'https://star-archiever-server.dundun.uno'
+export const CLOUD_API_URL = 'https://dundun.uno'
 
 // --- AUDIO RESOURCES ---
 export const AUDIO_RESOURCES = {

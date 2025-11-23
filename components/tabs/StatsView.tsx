@@ -1,24 +1,56 @@
 
 import React, { useState, useMemo } from 'react';
-import { BarChart2, PieChart, TrendingUp, Award, Zap, ShoppingBag, ArrowDown, ArrowUp, Lock, Trophy } from 'lucide-react';
+import { BarChart2, PieChart, TrendingUp, Award, Zap, ShoppingBag, ArrowDown, ArrowUp, Lock, Trophy, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Task, TaskCategory, Transaction, Achievement } from '../../types';
 import { Theme } from '../../styles/themes';
 import { CATEGORY_STYLES, ACHIEVEMENTS } from '../../constants';
+import { useAppLogic } from '../../hooks/useAppLogic'; // We need props actually, not hook usage here directly, but the parent passes props
 
 interface StatsViewProps {
   tasks: Task[];
   logs: Record<string, string[]>;
   transactions: Transaction[];
-  currentDate: Date;
+  currentDate: Date; // This acts as the anchor date in app logic
   theme: Theme;
   unlockedAchievements?: string[];
   onViewAchievement: (ach: Achievement) => void;
+  // Stats Config Props (Passed from parent's state.statsConfig)
+  statsConfig?: {
+      type: 'day' | 'week' | 'month' | 'custom';
+      date: Date;
+      customStart?: Date;
+      customEnd?: Date;
+  };
+  setStatsConfig?: (config: any) => void;
 }
 
-type TimeRange = 'day' | 'week' | 'month';
+export const StatsView: React.FC<StatsViewProps> = ({ 
+    tasks, logs, transactions, currentDate, theme, unlockedAchievements = [], onViewAchievement,
+    statsConfig = { type: 'week', date: new Date() }, setStatsConfig 
+}) => {
+  
+  // Helper to format date string for inputs
+  const toDateStr = (d: Date) => {
+    return d.toISOString().split('T')[0];
+  };
 
-export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions, currentDate, theme, unlockedAchievements = [], onViewAchievement }) => {
-  const [range, setRange] = useState<TimeRange>('week');
+  const handleTypeChange = (type: 'day' | 'week' | 'month' | 'custom') => {
+      if (setStatsConfig) {
+          setStatsConfig({ ...statsConfig, type });
+      }
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (setStatsConfig && e.target.value) {
+          setStatsConfig({ ...statsConfig, date: new Date(e.target.value) });
+      }
+  };
+  
+  const handleCustomDateChange = (field: 'customStart' | 'customEnd', val: string) => {
+      if (setStatsConfig && val) {
+          setStatsConfig({ ...statsConfig, [field]: new Date(val) });
+      }
+  };
 
   // Helper: Start of Week (Monday)
   const getStartOfWeek = (d: Date) => {
@@ -32,8 +64,30 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
 
   // Process Data
   const stats = useMemo(() => {
-    let start = new Date(currentDate);
-    let end = new Date(currentDate);
+    // The data range to DISPLAY (Buckets)
+    let start = new Date(statsConfig.date);
+    let end = new Date(statsConfig.date);
+    
+    // Override start/end based on statsConfig type for bucketing logic
+    if (statsConfig.type === 'custom' && statsConfig.customStart && statsConfig.customEnd) {
+        start = new Date(statsConfig.customStart);
+        end = new Date(statsConfig.customEnd);
+    } 
+    else if (statsConfig.type === 'day') {
+        // start/end is that day
+    }
+    else if (statsConfig.type === 'week') {
+        start = getStartOfWeek(statsConfig.date);
+        end = new Date(start);
+        end.setDate(end.getDate() + 6);
+    }
+    else if (statsConfig.type === 'month') {
+        start.setDate(1);
+        end = new Date(start);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(0);
+    }
+
     let labels: string[] = [];
     let dataPoints: { 
         label: string, 
@@ -45,7 +99,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
     }[] = [];
 
     // 1. Define Time Buckets based on Range
-    if (range === 'day') {
+    if (statsConfig.type === 'day') {
         start.setHours(0, 0, 0, 0);
         end.setHours(23, 59, 59, 999);
         
@@ -55,16 +109,13 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
             labels.push(`${i}:00`);
             dataPoints.push({ label: `${i}点`, earned: 0, spent: 0, penalty: 0, startCtx: s, endCtx: e });
         }
-    } else if (range === 'week') {
-        const weekStart = getStartOfWeek(currentDate);
-        start = new Date(weekStart);
-        end = new Date(weekStart);
-        end.setDate(end.getDate() + 6);
-        end.setHours(23, 59, 59, 999);
+    } else if (statsConfig.type === 'week') {
+        start.setHours(0,0,0,0);
+        end.setHours(23,59,59,999);
 
         for (let i = 0; i < 7; i++) {
-            const d = new Date(weekStart);
-            d.setDate(weekStart.getDate() + i);
+            const d = new Date(start);
+            d.setDate(start.getDate() + i);
             const dayName = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
             
             const s = new Date(d); s.setHours(0,0,0,0);
@@ -73,15 +124,16 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
             labels.push(dayName);
             dataPoints.push({ label: `周${dayName}`, earned: 0, spent: 0, penalty: 0, startCtx: s, endCtx: e });
         }
-    } else if (range === 'month') {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        start = new Date(year, month, 1);
-        end = new Date(year, month + 1, 0, 23, 59, 59);
+    } else if (statsConfig.type === 'month') {
+        start.setHours(0,0,0,0);
+        end.setHours(23,59,59,999);
         
         const daysInMonth = end.getDate();
-        const bucketSize = Math.ceil(daysInMonth / 10);
+        const bucketSize = Math.ceil(daysInMonth / 10); // About 10 buckets
         
+        const year = start.getFullYear();
+        const month = start.getMonth();
+
         for (let i = 1; i <= daysInMonth; i+=bucketSize) {
             const s = new Date(year, month, i);
             const e = new Date(year, month, Math.min(i + bucketSize - 1, daysInMonth), 23, 59, 59);
@@ -89,6 +141,24 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
             labels.push(`${i}日`);
             dataPoints.push({ label: `${i}日`, earned: 0, spent: 0, penalty: 0, startCtx: s, endCtx: e });
         }
+    } else if (statsConfig.type === 'custom') {
+         // Simple linear bucketing for custom range (e.g. daily if < 30 days, else weekly)
+         // For simplicity, just aggregate totals or use dynamic buckets? 
+         // Let's do daily buckets if <= 14 days, otherwise just total summary for now or simplified segments
+         const diffTime = Math.abs(end.getTime() - start.getTime());
+         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+         
+         if (diffDays <= 14) {
+             for (let i = 0; i < diffDays; i++) {
+                 const d = new Date(start); d.setDate(start.getDate() + i);
+                 const s = new Date(d); s.setHours(0,0,0,0);
+                 const e = new Date(d); e.setHours(23,59,59,999);
+                 dataPoints.push({ label: `${d.getMonth()+1}/${d.getDate()}`, earned: 0, spent: 0, penalty: 0, startCtx: s, endCtx: e });
+             }
+         } else {
+             // Just one big bucket for now to avoid UI overflow
+             dataPoints.push({ label: '合计', earned: 0, spent: 0, penalty: 0, startCtx: start, endCtx: end });
+         }
     }
 
     // 2. Fill Data from Transactions
@@ -97,6 +167,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
     let totalPenalty = 0;
     let categoryCounts: Record<string, number> = {};
 
+    // Filter relevant transactions (ensure we only use what's loaded, which should be correct due to server fetch)
     const relevantTx = transactions.filter(tx => {
         const txDate = new Date(tx.date);
         return txDate >= start && txDate <= end;
@@ -170,66 +241,67 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
     const maxVal = Math.max(...dataPoints.map(d => Math.max(d.earned, d.spent, d.penalty)), 10);
 
     return { totalEarned, totalSpent, totalPenalty, dataPoints, maxVal, categoryCounts };
-  }, [range, currentDate, transactions, tasks]);
+  }, [statsConfig, transactions, tasks]);
 
   return (
     <div className="py-4 pb-24 animate-slide-up space-y-6">
       
-      <div className="px-4 flex items-center justify-between">
-          <h2 className={`text-xl font-cute flex items-center ${theme.accent}`}>
-              <span className={`${theme.light} p-2 rounded-xl mr-3 shadow-sm -rotate-3`}><PieChart className={`w-5 h-5 ${theme.accent}`} /></span>
-              统计分析
-          </h2>
-          
-          <div className="bg-slate-100 p-1 rounded-xl flex text-xs font-bold shadow-inner">
-             {(['day', 'week', 'month'] as TimeRange[]).map(r => (
-                 <button
-                    key={r}
-                    onClick={() => setRange(r)}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${range === r ? 'bg-white text-slate-700 shadow-sm scale-105' : 'text-slate-400 hover:text-slate-500'}`}
-                 >
-                    {r === 'day' ? '今日' : r === 'week' ? '本周' : '本月'}
-                 </button>
-             ))}
+      {/* Header and Controls */}
+      <div className="px-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className={`text-xl font-cute flex items-center ${theme.accent}`}>
+                <span className={`${theme.light} p-2 rounded-xl mr-3 shadow-sm -rotate-3`}><PieChart className={`w-5 h-5 ${theme.accent}`} /></span>
+                统计分析
+            </h2>
           </div>
-      </div>
 
-      {/* Achievement Section */}
-      <div className="px-2">
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] p-5 text-white shadow-md relative overflow-hidden">
-               {/* Decor */}
-               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-10 -mb-10 blur-xl"></div>
-               
-               <h3 className="flex items-center gap-2 font-cute text-lg mb-4 relative z-10">
-                   <Trophy size={20} className="text-yellow-300" /> 荣誉勋章墙
-               </h3>
-               
-               <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 relative z-10">
-                   {ACHIEVEMENTS.map(ach => {
-                       const isUnlocked = unlockedAchievements.includes(ach.id);
-                       return (
-                           <button 
-                                key={ach.id} 
-                                onClick={() => onViewAchievement(ach)}
-                                className={`
-                                    flex flex-col items-center justify-center p-2 rounded-xl transition-all active:scale-95 hover:scale-105
-                                    ${isUnlocked ? 'bg-white/20 backdrop-blur-sm shadow-sm' : 'bg-black/20 opacity-60 grayscale hover:opacity-80'}
-                                `}
-                           >
-                               <div className={`text-2xl mb-1 ${isUnlocked ? 'animate-pop' : ''}`}>
-                                   {isUnlocked ? ach.icon : <Lock size={20} className="text-white/30 p-1"/>}
-                               </div>
-                               <div className="text-[9px] font-bold text-center leading-tight opacity-90 truncate w-full">
-                                   {ach.title}
-                               </div>
-                           </button>
-                       );
-                   })}
-               </div>
-               <div className="mt-3 text-right text-xs font-bold text-white/60">
-                   已收集 {unlockedAchievements.length} / {ACHIEVEMENTS.length}
-               </div>
+          <div className="bg-white rounded-[1.5rem] p-2 shadow-sm border border-slate-100 mb-4">
+             {/* Type Selector */}
+             <div className="flex gap-1 mb-3 bg-slate-100/50 p-1 rounded-xl">
+                 {(['day', 'week', 'month', 'custom'] as const).map(t => (
+                     <button
+                        key={t}
+                        onClick={() => handleTypeChange(t)}
+                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${statsConfig.type === t ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-500'}`}
+                     >
+                        {t === 'day' ? '日报' : t === 'week' ? '周报' : t === 'month' ? '月报' : '自定义'}
+                     </button>
+                 ))}
+             </div>
+
+             {/* Date Picker Area */}
+             <div className="flex items-center justify-center gap-3">
+                 <Calendar size={18} className="text-slate-400" />
+                 {statsConfig.type !== 'custom' ? (
+                     <input 
+                        type="date"
+                        value={toDateStr(statsConfig.date)}
+                        onChange={handleDateChange}
+                        className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 font-bold text-sm outline-none focus:border-blue-400"
+                     />
+                 ) : (
+                     <div className="flex items-center gap-2">
+                         <input 
+                            type="date"
+                            value={statsConfig.customStart ? toDateStr(statsConfig.customStart) : ''}
+                            onChange={(e) => handleCustomDateChange('customStart', e.target.value)}
+                            className="w-32 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 font-bold text-xs outline-none focus:border-blue-400"
+                         />
+                         <span className="text-slate-300">-</span>
+                         <input 
+                            type="date"
+                            value={statsConfig.customEnd ? toDateStr(statsConfig.customEnd) : ''}
+                            onChange={(e) => handleCustomDateChange('customEnd', e.target.value)}
+                            className="w-32 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 font-bold text-xs outline-none focus:border-blue-400"
+                         />
+                     </div>
+                 )}
+             </div>
+             {statsConfig.type === 'week' && (
+                 <div className="text-center text-[10px] text-slate-400 mt-2 font-bold">
+                     (选中日期所在周: {getStartOfWeek(statsConfig.date).toLocaleDateString()} 起)
+                 </div>
+             )}
           </div>
       </div>
 
@@ -312,6 +384,45 @@ export const StatsView: React.FC<StatsViewProps> = ({ tasks, logs, transactions,
                  );
              })}
          </div>
+      </div>
+
+      {/* Achievement Section */}
+      <div className="px-2">
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] p-5 text-white shadow-md relative overflow-hidden">
+               {/* Decor */}
+               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-10 -mb-10 blur-xl"></div>
+               
+               <h3 className="flex items-center gap-2 font-cute text-lg mb-4 relative z-10">
+                   <Trophy size={20} className="text-yellow-300" /> 荣誉勋章墙
+               </h3>
+               
+               <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 relative z-10">
+                   {ACHIEVEMENTS.map(ach => {
+                       const isUnlocked = unlockedAchievements.includes(ach.id);
+                       return (
+                           <button 
+                                key={ach.id} 
+                                onClick={() => onViewAchievement(ach)}
+                                className={`
+                                    flex flex-col items-center justify-center p-2 rounded-xl transition-all active:scale-95 hover:scale-105
+                                    ${isUnlocked ? 'bg-white/20 backdrop-blur-sm shadow-sm' : 'bg-black/20 opacity-60 grayscale hover:opacity-80'}
+                                `}
+                           >
+                               <div className={`text-2xl mb-1 ${isUnlocked ? 'animate-pop' : ''}`}>
+                                   {isUnlocked ? ach.icon : <Lock size={20} className="text-white/30 p-1"/>}
+                               </div>
+                               <div className="text-[9px] font-bold text-center leading-tight opacity-90 truncate w-full">
+                                   {ach.title}
+                               </div>
+                           </button>
+                       );
+                   })}
+               </div>
+               <div className="mt-3 text-right text-xs font-bold text-white/60">
+                   已收集 {unlockedAchievements.length} / {ACHIEVEMENTS.length}
+               </div>
+          </div>
       </div>
 
       {/* Category Breakdown */}
