@@ -2,19 +2,24 @@
 import React, { useState } from 'react';
 import { X, Star } from 'lucide-react';
 import { TaskCategory } from '../../types';
-import { CATEGORY_STYLES } from '../../constants';
+import { CATEGORY_STYLES, TASK_ICONS } from '../../constants';
 import { ToastType } from '../Toast';
 import { Theme } from '../../styles/themes';
 
 interface TaskModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (task: { title: string, stars: number, category: TaskCategory }) => void;
+    onSave: (task: { title: string, stars: number, category: TaskCategory, icon?: string }) => void;
     onShowToast: (msg: string, type: ToastType) => void;
 }
 
 export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, onShowToast }) => {
-    const [newTask, setNewTask] = useState({ title: '', stars: 2, category: TaskCategory.LIFE });
+    const [newTask, setNewTask] = useState<{ title: string, stars: number, category: TaskCategory, icon: string }>({ 
+        title: '', 
+        stars: 2, 
+        category: TaskCategory.LIFE,
+        icon: '📝'
+    });
 
     if (!isOpen) return null;
 
@@ -40,14 +45,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
 
         onSave({ ...newTask, stars: finalStars });
         onShowToast("任务添加成功！", 'success');
-        setNewTask({ title: '', stars: 2, category: TaskCategory.LIFE });
+        setNewTask({ title: '', stars: 2, category: TaskCategory.LIFE, icon: '📝' });
     };
 
     const isPenalty = newTask.category === TaskCategory.PENALTY;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-fade-in border-4 border-white">
+            <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-fade-in border-4 border-white max-h-[90vh] overflow-y-auto">
                 <div className={`p-4 flex justify-between items-center ${isPenalty ? 'bg-rose-50' : 'bg-lime-50'}`}>
                     <h3 className={`font-cute text-xl ${isPenalty ? 'text-rose-700' : 'text-lime-700'}`}>✨ 添加新任务</h3>
                     <button onClick={onClose} className="bg-white p-1.5 rounded-full text-slate-400 hover:text-slate-600 shadow-sm"><X size={20}/></button>
@@ -64,6 +69,21 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
                         />
                     </div>
                     
+                    <div>
+                        <label className="block text-xs text-slate-400 font-bold uppercase mb-2 ml-2">选择图标</label>
+                        <div className="grid grid-cols-8 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-50 rounded-xl border-2 border-slate-100">
+                            {TASK_ICONS.map(icon => (
+                                <button 
+                                    key={icon}
+                                    onClick={() => setNewTask({...newTask, icon})}
+                                    className={`text-xl p-1 rounded-lg hover:bg-white transition-all flex items-center justify-center ${newTask.icon === icon ? `bg-white shadow-md ring-2 ring-offset-1 scale-110 ${isPenalty ? 'ring-rose-300' : 'ring-lime-300'}` : 'opacity-60 hover:opacity-100'}`}
+                                >
+                                    {icon}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div>
                         <label className="block text-xs text-slate-400 font-bold uppercase mb-2 ml-2">选择类别</label>
                         <div className="flex flex-wrap gap-2">

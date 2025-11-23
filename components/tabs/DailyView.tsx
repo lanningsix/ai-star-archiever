@@ -95,7 +95,7 @@ export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, transactions,
                       : `${style.bg} ${style.border} shadow-[0_3px_0_0_rgba(0,0,0,0.05)] hover:shadow-[0_4px_0_0_rgba(0,0,0,0.05)] hover:-translate-y-0.5 bg-white`}
                   `}
                 >
-                    <div className="flex items-center gap-4 z-10 flex-1">
+                    <div className="flex items-center gap-3 z-10 flex-1">
                         <div className="w-8 h-8 flex items-center justify-center shrink-0 transition-all duration-300">
                             {isDone ? (
                                 isPenalty 
@@ -105,6 +105,12 @@ export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, transactions,
                                 <Circle size={28} className="text-slate-300 group-hover:text-slate-400 transition-colors" strokeWidth={1.5} />
                             )}
                         </div>
+                        
+                        {task.icon && (
+                          <span className={`text-2xl ${isDone ? 'opacity-50 grayscale' : 'drop-shadow-sm'}`}>
+                            {task.icon}
+                          </span>
+                        )}
                         
                         <span className={`font-bold text-lg leading-tight ${isDone ? 'text-slate-400 line-through decoration-2 decoration-slate-300' : 'text-slate-700'}`}>{task.title}</span>
                     </div>

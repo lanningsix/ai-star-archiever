@@ -12,6 +12,7 @@ export interface Task {
   title: string;
   category: TaskCategory;
   stars: number; // Can be positive or negative
+  icon?: string; // Optional icon (emoji)
 }
 
 export interface Reward {

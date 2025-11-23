@@ -20,34 +20,38 @@ export const AUDIO_RESOURCES = {
 
 export const INITIAL_TASKS: Task[] = [
   // Life Habits
-  { id: 't1', category: TaskCategory.LIFE, title: '按时起床', stars: 2 },
+  { id: 't1', category: TaskCategory.LIFE, title: '按时起床', stars: 2, icon: '⏰' },
   {
     id: 't2',
     category: TaskCategory.LIFE,
     title: '自己穿衣服、叠被子',
     stars: 2,
+    icon: '🛏️'
   },
-  { id: 't3', category: TaskCategory.LIFE, title: '按时上床睡觉', stars: 2 },
+  { id: 't3', category: TaskCategory.LIFE, title: '按时上床睡觉', stars: 2, icon: '🌙' },
   {
     id: 't4',
     category: TaskCategory.LIFE,
     title: '每天上幼儿园不缺勤',
     stars: 2,
+    icon: '🏫'
   },
-  { id: 't5', category: TaskCategory.LIFE, title: '不挑食、不剩饭', stars: 2 },
+  { id: 't5', category: TaskCategory.LIFE, title: '不挑食、不剩饭', stars: 2, icon: '🍚' },
   {
     id: 't6',
     category: TaskCategory.LIFE,
     title: '不用提醒自己喝水',
     stars: 2,
+    icon: '💧'
   },
   {
     id: 't7',
     category: TaskCategory.LIFE,
     title: '玩具玩完自己收拾',
     stars: 2,
+    icon: '🧸'
   },
-  { id: 't8', category: TaskCategory.LIFE, title: '爱护玩具、书本', stars: 2 },
+  { id: 't8', category: TaskCategory.LIFE, title: '爱护玩具、书本', stars: 2, icon: '📚' },
 
   // Behavioral Habits
   {
@@ -55,79 +59,99 @@ export const INITIAL_TASKS: Task[] = [
     category: TaskCategory.BEHAVIOR,
     title: '每天坚持运动30分钟',
     stars: 2,
+    icon: '🏃'
   },
   {
     id: 't10',
     category: TaskCategory.BEHAVIOR,
     title: '每天阅读至少30分钟',
     stars: 2,
+    icon: '📖'
   },
   {
     id: 't11',
     category: TaskCategory.BEHAVIOR,
     title: '学会1首新的古诗/儿歌',
     stars: 2,
+    icon: '🎵'
   },
   {
     id: 't12',
     category: TaskCategory.BEHAVIOR,
     title: '能用数学方法解决问题',
     stars: 2,
+    icon: '🔢'
   },
   {
     id: 't13',
     category: TaskCategory.BEHAVIOR,
     title: '遇到问题好好说话',
     stars: 2,
+    icon: '🗣️'
   },
   {
     id: 't14',
     category: TaskCategory.BEHAVIOR,
     title: '遇到困难不退缩',
     stars: 2,
+    icon: '💪'
   },
 
   // Bonus
-  { id: 't15', category: TaskCategory.BONUS, title: '主动做家务', stars: 5 },
+  { id: 't15', category: TaskCategory.BONUS, title: '主动做家务', stars: 5, icon: '🧹' },
   {
     id: 't16',
     category: TaskCategory.BONUS,
     title: '得到老师/小朋友表扬',
     stars: 5,
+    icon: '👏'
   },
   {
     id: 't17',
     category: TaskCategory.BONUS,
     title: '讲一个很长的故事',
     stars: 5,
+    icon: '🐉'
   },
   {
     id: 't18',
     category: TaskCategory.BONUS,
     title: '犯错了主动承认改正',
     stars: 5,
+    icon: '🙇'
   },
 
   // Penalty
-  { id: 't19', category: TaskCategory.PENALTY, title: '上学迟到', stars: -5 },
+  { id: 't19', category: TaskCategory.PENALTY, title: '上学迟到', stars: -5, icon: '😫' },
   {
     id: 't20',
     category: TaskCategory.PENALTY,
     title: '不听老师的话',
     stars: -5,
+    icon: '🙉'
   },
   {
     id: 't21',
     category: TaskCategory.PENALTY,
     title: '说谎、打人、咬人',
     stars: -5,
+    icon: '🤥'
   },
   {
     id: 't22',
     category: TaskCategory.PENALTY,
     title: '长时间玩手机/看电视',
     stars: -5,
+    icon: '📺'
   },
+]
+
+export const TASK_ICONS = [
+  '⏰', '🛏️', '🌙', '🏫', '🍚', '💧', '🧸', '📚', '🏃', '📖', 
+  '🎵', '🔢', '🗣️', '💪', '🧹', '👏', '🐉', '🙇', '😫', '🙉', 
+  '🤥', '📺', '🦷', '🚿', '👗', '🎒', '✏️', '🎨', '🎹', '⚽', 
+  '🏊', '🗑️', '🤝', '🤐', '👂', '😊', '😢', '😠', '💤', '📱', 
+  '🎮', '🍬', '👊', '🌞', '🌛', '🍽️', '🚽', '🛁'
 ]
 
 export const INITIAL_REWARDS: Reward[] = [

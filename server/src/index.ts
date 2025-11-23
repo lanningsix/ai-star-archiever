@@ -171,22 +171,38 @@ export default {
             .bind(familyId, timestamp, timestamp)
           );
 
-          // --- Granular Update Scopes ---
+          let deltaBalance = 0;
+          let deltaLifetime = 0;
+          let shouldUpdateBalance = false;
+
+          // --- Granular Update Scopes with Atomic Balance Calculation ---
           
           if (scope === 'record_log') {
-             const { dateKey, taskId, action, transaction, revokeTransactionId, balance, lifetimeEarnings } = data;
-             
-             // Update Settings (Balance & Lifetime)
-             statements.push(env.DB.prepare("UPDATE settings SET balance = ?, lifetime_earned = ?, updated_at = ? WHERE family_id = ?").bind(balance, lifetimeEarnings, timestamp, familyId));
+             const { dateKey, taskId, action, transaction, revokeTransactionId } = data;
+             shouldUpdateBalance = true;
              
              // Insert Transaction (Standard)
              if (transaction) {
                   statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
+                  
+                  deltaBalance += transaction.amount;
+                  // Only add to lifetime if it's positive and not a revocation of something else (though usually revocations are negative)
+                  if (transaction.amount > 0 && !transaction.isRevoked) {
+                      deltaLifetime += transaction.amount;
+                  }
              }
 
-             // Update Transaction (Revoke)
+             // Update Transaction (Revoke) - Calculate delta from DB
              if (revokeTransactionId) {
-                  statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = 1 WHERE family_id = ? AND id = ?").bind(familyId, revokeTransactionId));
+                  const originalTx = await env.DB.prepare("SELECT amount FROM transactions WHERE id = ? AND family_id = ?").bind(revokeTransactionId, familyId).first();
+                  if (originalTx) {
+                      // Reverse the effect
+                      deltaBalance -= originalTx.amount;
+                      if (originalTx.amount > 0) {
+                          deltaLifetime -= originalTx.amount;
+                      }
+                      statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = 1 WHERE family_id = ? AND id = ?").bind(familyId, revokeTransactionId));
+                  }
              }
              
              // Modify Log
@@ -198,47 +214,39 @@ export default {
              }
           }
           else if (scope === 'record_transaction') {
-             const { transaction, balance, lifetimeEarnings } = data;
-             
-             // Update Settings
-             const updateSql = lifetimeEarnings !== undefined 
-                ? "UPDATE settings SET balance = ?, lifetime_earned = ?, updated_at = ? WHERE family_id = ?"
-                : "UPDATE settings SET balance = ?, updated_at = ? WHERE family_id = ?";
-             
-             const updateParams = lifetimeEarnings !== undefined
-                ? [balance, lifetimeEarnings, timestamp, familyId]
-                : [balance, timestamp, familyId];
-             
-             statements.push(env.DB.prepare(updateSql).bind(...updateParams));
+             const { transaction } = data;
+             shouldUpdateBalance = true;
 
-             // Insert Transaction
              if (transaction) {
                   statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
+                  
+                  deltaBalance += transaction.amount;
+                  if (transaction.amount > 0 && !transaction.isRevoked) {
+                      deltaLifetime += transaction.amount;
+                  }
              }
           }
           else if (scope === 'wishlist_update') {
-             const { goal, transaction, balance } = data;
-             
-             if (balance !== undefined) {
-                 statements.push(env.DB.prepare("UPDATE settings SET balance = ?, updated_at = ? WHERE family_id = ?").bind(balance, timestamp, familyId));
-             }
+             const { goal, transaction } = data;
+             shouldUpdateBalance = true;
              
              if (transaction) {
                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
+                 
+                 deltaBalance += transaction.amount;
              }
              
              // Upsert Goal
              statements.push(env.DB.prepare("INSERT OR REPLACE INTO wishlist_goals (id, family_id, title, target_cost, current_saved, icon, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(goal.id, familyId, goal.title, goal.targetCost, goal.currentSaved, goal.icon, timestamp));
           }
           else if (scope === 'wishlist_delete') {
-             const { goalId, transaction, balance } = data;
-             
-             if (balance !== undefined) {
-                 statements.push(env.DB.prepare("UPDATE settings SET balance = ?, updated_at = ? WHERE family_id = ?").bind(balance, timestamp, familyId));
-             }
+             const { goalId, transaction } = data;
+             shouldUpdateBalance = true;
              
              if (transaction) {
                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
+                 
+                 deltaBalance += transaction.amount;
              }
              
              statements.push(env.DB.prepare("DELETE FROM wishlist_goals WHERE family_id = ? AND id = ?").bind(familyId, goalId));
@@ -249,9 +257,9 @@ export default {
           else if (scope === 'tasks') {
              if (Array.isArray(data)) {
                 statements.push(env.DB.prepare("DELETE FROM tasks WHERE family_id = ?").bind(familyId));
-                const insertStmt = env.DB.prepare("INSERT INTO tasks (id, family_id, title, category, stars, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
+                const insertStmt = env.DB.prepare("INSERT INTO tasks (id, family_id, title, category, stars, icon, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
                 data.forEach(t => {
-                    statements.push(insertStmt.bind(t.id, familyId, t.title, t.category, t.stars, timestamp));
+                    statements.push(insertStmt.bind(t.id, familyId, t.title, t.category, t.stars, t.icon || '', timestamp));
                 });
              }
           }
@@ -265,7 +273,6 @@ export default {
              }
           }
           else if (scope === 'wishlist') {
-             // Bulk wishlist sync (still used for manual save)
              if (Array.isArray(data)) {
                 statements.push(env.DB.prepare("DELETE FROM wishlist_goals WHERE family_id = ?").bind(familyId));
                 const insertStmt = env.DB.prepare("INSERT INTO wishlist_goals (id, family_id, title, target_cost, current_saved, icon, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -286,6 +293,7 @@ export default {
           }
           else if (scope === 'avatar') {
              const avatarJson = data.avatar ? JSON.stringify(data.avatar) : null;
+             // Legacy direct balance update for avatar if needed, but prefer transactions
              if (data.balance !== undefined) {
                 statements.push(env.DB.prepare("UPDATE settings SET avatar_data = ?, balance = ?, updated_at = ? WHERE family_id = ?").bind(avatarJson, data.balance, timestamp, familyId));
              } else {
@@ -293,7 +301,7 @@ export default {
              }
           }
           else if (scope === 'activity') {
-             // Full sync for Manual Save (also used for achievements only update)
+             // Full sync/overwrite for Manual Save
              const fieldsToUpdate = [];
              const values = [];
              
@@ -316,7 +324,9 @@ export default {
                  values.push(familyId);
                  statements.push(env.DB.prepare(`UPDATE settings SET ${fieldsToUpdate.join(", ")} WHERE family_id = ?`).bind(...values));
              }
-
+             
+             // Overwrite logs and transactions logic ... (Keep existing if needed, or assume manual save is rare)
+             // For brevity, keeping existing logic for activity scope roughly as is (absolute sync)
              if (data.logs) {
                 statements.push(env.DB.prepare("DELETE FROM task_logs WHERE family_id = ?").bind(familyId));
                 const logInsert = env.DB.prepare("INSERT INTO task_logs (family_id, date_key, task_id, created_at) VALUES (?, ?, ?, ?)");
@@ -339,11 +349,25 @@ export default {
              }
           }
 
+          // Apply Atomic Updates if applicable
+          if (shouldUpdateBalance && (deltaBalance !== 0 || deltaLifetime !== 0)) {
+               statements.push(env.DB.prepare("UPDATE settings SET balance = balance + ?, lifetime_earned = MAX(0, lifetime_earned + ?), updated_at = ? WHERE family_id = ?").bind(deltaBalance, deltaLifetime, timestamp, familyId));
+          }
+
           if (statements.length > 0) {
               await env.DB.batch(statements);
           }
+          
+          // Return updated balance to client
+          const finalSettings = await env.DB.prepare("SELECT balance, lifetime_earned FROM settings WHERE family_id = ?").bind(familyId).first();
 
-          return new Response(JSON.stringify({ success: true }), {
+          return new Response(JSON.stringify({ 
+              success: true,
+              data: {
+                  balance: finalSettings ? finalSettings.balance : 0,
+                  lifetimeEarnings: finalSettings ? finalSettings.lifetime_earned : 0
+              }
+          }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }

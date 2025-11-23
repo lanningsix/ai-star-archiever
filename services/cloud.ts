@@ -20,6 +20,15 @@ export interface CloudData {
 
 export type DataScope = 'tasks' | 'rewards' | 'wishlist' | 'settings' | 'activity' | 'avatar';
 
+export interface SyncResponse {
+    success: boolean;
+    data?: {
+        balance?: number;
+        lifetimeEarnings?: number;
+        [key: string]: any;
+    };
+}
+
 export const cloudService = {
   // Generate a random Family ID
   generateFamilyId: () => {
@@ -65,9 +74,9 @@ export const cloudService = {
   },
 
   // Save data to Backend (Scoped) with Retry
-  saveData: async (familyId: string, scope: DataScope, data: any): Promise<boolean> => {
+  saveData: async (familyId: string, scope: DataScope | string, data: any): Promise<SyncResponse> => {
     if (CLOUD_API_URL.includes('example')) {
-        return new Promise(resolve => setTimeout(() => resolve(true), 500));
+        return new Promise(resolve => setTimeout(() => resolve({ success: true }), 500));
     }
 
     const payload = {
@@ -93,7 +102,10 @@ export const cloudService = {
 
           clearTimeout(timeoutId);
           
-          if (response.ok) return true;
+          if (response.ok) {
+              const json = await response.json();
+              return json;
+          }
           
           // If server returns error, wait before retry
           await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
@@ -105,6 +117,6 @@ export const cloudService = {
     }
     
     console.error(`Failed to save cloud data (${scope}) after 3 attempts.`);
-    return false;
+    return { success: false };
   }
 };

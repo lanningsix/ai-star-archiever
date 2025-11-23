@@ -318,11 +318,22 @@ export const useAppLogic = () => {
     if (!familyId) return;
     if (!silent) setSyncStatus('syncing');
     
-    // Optimistic UI for some actions is handled by caller updating state first
-    const success = await cloudService.saveData(familyId, scope as DataScope, data);
+    // We send data, but for balance-related ops, we trust server response more
+    const result = await cloudService.saveData(familyId, scope as DataScope, data);
     
-    if (success) {
+    if (result.success) {
         setSyncStatus('saved');
+        
+        // If server returns updated balance/lifetimeEarnings, use them to stay in sync
+        if (result.data) {
+             if (typeof result.data.balance === 'number') {
+                 setBalance(result.data.balance);
+             }
+             if (typeof result.data.lifetimeEarnings === 'number') {
+                 setLifetimeEarnings(result.data.lifetimeEarnings);
+             }
+        }
+
         if (!silent) setTimeout(() => setSyncStatus('idle'), 2000);
     } else {
         setSyncStatus('error');
@@ -590,7 +601,7 @@ export const useAppLogic = () => {
 
   // Helper to calculate transaction, update local state, and return data for cloud sync
   const handleTransaction = (amount: number, description: string, dateContext?: Date, taskId?: string) => {
-    // 1. Calculate New State Values
+    // 1. Calculate New State Values (Optimistic)
     const newBalance = balance + amount;
     let newLifetime = lifetimeEarnings;
     
@@ -619,7 +630,8 @@ export const useAppLogic = () => {
       isRevoked: false
     };
 
-    // 3. Update Local State
+    // 3. Update Local State (Optimistic)
+    // Note: If cloud sync is active, these will be overwritten by server response logic in syncData
     setBalance(newBalance);
     setLifetimeEarnings(newLifetime);
     setTransactions(prev => [newTx, ...prev]);
@@ -659,10 +671,8 @@ export const useAppLogic = () => {
           const targetTx = transactions[targetTxIndex];
           
           // 2. Calculate corrections
-          // Subtract the original amount from balance
           const newBalance = balance - targetTx.amount;
           
-          // Subtract from lifetime earnings if it was a positive earning
           let newLifetime = lifetimeEarnings;
           if (targetTx.amount > 0) {
               newLifetime = Math.max(0, lifetimeEarnings - targetTx.amount);
@@ -684,13 +694,12 @@ export const useAppLogic = () => {
                 taskId: task.id,
                 action,
                 revokeTransactionId: targetTx.id,
-                balance: newBalance,
-                lifetimeEarnings: newLifetime
+                balance: newBalance, // ignored by backend in new version
+                lifetimeEarnings: newLifetime // ignored by backend in new version
              }, true);
           }
       } else {
           // Fallback for Legacy Data (or if transaction missing): Create a compensating transaction
-          // This maintains backward compatibility if we can't find the original record to mark as revoked.
           const txData = handleTransaction(-task.stars, `撤销: ${task.title}`, currentDate);
           setLogs({ ...logs, [dateKey]: newLog });
           
