@@ -36,6 +36,7 @@ export default {
         if (request.method === "GET") {
           const scope = url.searchParams.get("scope") || "all"; // 'all', 'daily', 'store', 'calendar', 'avatar', 'wishlist'
           const month = url.searchParams.get("month"); // Optional: YYYY-MM
+          const dateParam = url.searchParams.get("date"); // Optional: YYYY-MM-DD
 
           // 1. 获取基础设置 (Always fetch settings for balance/theme/avatar/stats)
           const settings = await env.DB.prepare("SELECT * FROM settings WHERE family_id = ?").bind(familyId).first();
@@ -52,7 +53,15 @@ export default {
 
           if (scope === 'all' || scope === 'daily' || scope === 'settings') {
               promises.push(env.DB.prepare("SELECT * FROM tasks WHERE family_id = ?").bind(familyId).all().then(r => tasksResult = r));
-              promises.push(env.DB.prepare("SELECT date_key, task_id FROM task_logs WHERE family_id = ?").bind(familyId).all().then(r => logsResult = r));
+              
+              // Logs filtering
+              let logSql = "SELECT date_key, task_id FROM task_logs WHERE family_id = ?";
+              const logParams = [familyId];
+              if (dateParam) {
+                  logSql += " AND date_key = ?";
+                  logParams.push(dateParam);
+              }
+              promises.push(env.DB.prepare(logSql).bind(...logParams).all().then(r => logsResult = r));
           }
 
           if (scope === 'all' || scope === 'store' || scope === 'settings') {
@@ -63,17 +72,22 @@ export default {
               promises.push(env.DB.prepare("SELECT * FROM wishlist_goals WHERE family_id = ?").bind(familyId).all().then(r => wishlistResult = r));
           }
 
-          if (scope === 'all' || scope === 'calendar' || scope === 'settings') {
+          if (scope === 'all' || scope === 'calendar' || scope === 'settings' || scope === 'activity') {
               let txSql = "SELECT * FROM transactions WHERE family_id = ?";
               const params = [familyId];
 
-              if (month) {
+              if (dateParam) {
+                  // Filter by specific date
+                  txSql += " AND date LIKE ?";
+                  params.push(`${dateParam}%`);
+                  txSql += " ORDER BY created_at DESC";
+              } else if (month) {
                   // If month is provided (YYYY-MM), filter by date string
                   txSql += " AND date LIKE ?";
                   params.push(`${month}%`);
                   txSql += " ORDER BY created_at DESC";
               } else {
-                  // If no month provided, fetch recent history with a much larger limit
+                  // If no date/month provided, fetch recent history with a much larger limit
                   // Increased from 100 to 5000 to prevent missing records
                   txSql += " ORDER BY created_at DESC LIMIT 5000";
               }
@@ -215,7 +229,7 @@ export default {
                 for (const [dateKey, taskIds] of Object.entries(data.logs)) {
                     if (Array.isArray(taskIds)) {
                         taskIds.forEach(tid => {
-                             statements.push(logInsert.bind(familyId, dateKey, tid, timestamp));
+                            statements.push(logInsert.bind(familyId, dateKey, tid, timestamp));
                         });
                     }
                 }

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_TASKS, INITIAL_REWARDS, ACHIEVEMENTS, MYSTERY_BOX_COST, MYSTERY_BOX_REWARDS, AUDIO_RESOURCES } from '../constants';
@@ -203,7 +204,7 @@ export const useAppLogic = () => {
             case 'category_count':
                if (ach.categoryFilter) {
                  let count = 0;
-                 Object.values(logs).forEach((dayLog: unknown) => {
+                 Object.values(logs).forEach((dayLog) => {
                      (dayLog as string[]).forEach(tid => {
                          const t = tasks.find(tt => tt.id === tid);
                          if (t && t.category === ach.categoryFilter) count++;
@@ -276,21 +277,36 @@ export const useAppLogic = () => {
   }, [streak, lifetimeEarnings, balance, transactions.length, logs]);
 
   // --- Cloud Logic ---
-  const handleCloudLoad = async (targetFamilyId: string, silent = false, scope = 'all') => {
+  const handleCloudLoad = async (targetFamilyId: string, silent = false, scope = 'all', date?: string) => {
     if (!targetFamilyId) return;
     if (!silent) setSyncStatus('syncing');
 
     try {
-      const data = await cloudService.loadData(targetFamilyId, scope);
+      const data = await cloudService.loadData(targetFamilyId, scope, date);
       if (data) {
         setIsSyncReady(false);
 
         if (data.tasks) setTasks(data.tasks);
         if (data.rewards) setRewards(data.rewards);
         if (data.wishlist) setWishlist(data.wishlist);
-        if (data.logs) setLogs(data.logs);
+        
+        // Merge logs
+        if (data.logs) {
+            setLogs(prev => ({ ...prev, ...data.logs }));
+        }
+
         if (data.balance !== undefined) setBalance(data.balance);
-        if (data.transactions) setTransactions(data.transactions);
+        
+        // Merge transactions
+        if (data.transactions) {
+             setTransactions(prev => {
+                 const newTx = data.transactions || [];
+                 const existingIds = new Set(prev.map(t => t.id));
+                 const uniqueNew = newTx.filter(t => !existingIds.has(t.id));
+                 return [...prev, ...uniqueNew].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+             });
+        }
+
         if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
         if (data.userName) setUserName(data.userName);
         if (data.lifetimeEarnings !== undefined) setLifetimeEarnings(data.lifetimeEarnings);
@@ -346,18 +362,26 @@ export const useAppLogic = () => {
         const fetchTab = async () => {
             setIsLoading(true);
             let scope = 'all';
-            if (activeTab === 'daily') scope = 'daily';
+            let dateParam = undefined;
+
+            if (activeTab === 'daily') {
+                 scope = 'daily';
+                 dateParam = getDateKey(currentDate);
+            }
             if (activeTab === 'store') scope = 'store';
-            if (activeTab === 'calendar') scope = 'calendar';
+            if (activeTab === 'calendar') {
+                 scope = 'calendar';
+                 dateParam = getDateKey(currentDate);
+            }
             if (activeTab === 'settings') scope = 'settings';
             if (activeTab === 'stats') scope = 'activity';
             
-            await handleCloudLoad(familyId, true, scope);
+            await handleCloudLoad(familyId, true, scope, dateParam);
             setIsLoading(false);
         };
         fetchTab();
     }
-  }, [activeTab]);
+  }, [activeTab, currentDate]); // Added currentDate dependency to fetch when date changes
 
   useEffect(() => {
     if (!familyId || !isSyncReady) return;
@@ -391,7 +415,7 @@ export const useAppLogic = () => {
 
 
   // --- 15 VARIETIES OF CELEBRATION ANIMATIONS ---
-
+  // ... (Celebration functions omitted for brevity, they remain unchanged) ...
   // 1. Star Burst
   const triggerStarConfetti = () => {
     const duration = 1000;
@@ -405,8 +429,8 @@ export const useAppLogic = () => {
         });
     }, 250);
   };
-
-  // 2. Side Cannons
+  
+  // ... (Remaining animation functions are unchanged, keeping them in the block to ensure valid file)
   const triggerSideCannons = () => {
       const end = Date.now() + 1000;
       const colors = ['#a78bfa', '#f472b6', '#34d399', '#fbbf24'];
@@ -416,8 +440,6 @@ export const useAppLogic = () => {
         if (Date.now() < end) requestAnimationFrame(frame);
       }());
   };
-
-  // 3. Fireworks
   const triggerFireworks = () => {
       const duration = 1500;
       const end = Date.now() + duration;
@@ -430,8 +452,6 @@ export const useAppLogic = () => {
         });
       }, 250);
   };
-
-  // 4. Love Rain
   const triggerLoveRain = () => {
     const duration = 2000;
     const end = Date.now() + duration;
@@ -443,16 +463,12 @@ export const useAppLogic = () => {
       if (Date.now() < end) requestAnimationFrame(frame);
     }());
   };
-
-  // 5. Gold Rush
   const triggerGoldRush = () => {
       safeConfetti({
           particleCount: 150, spread: 100, origin: { y: 0.6 },
           colors: ['#FFD700', '#FDB931', '#E5C100'], shapes: ['circle'], scalar: 1.2
       });
   };
-
-  // 6. Snowfall
   const triggerSnowfall = () => {
       const duration = 2500;
       const end = Date.now() + duration;
@@ -464,16 +480,12 @@ export const useAppLogic = () => {
         if (Date.now() < end) requestAnimationFrame(frame);
       }());
   };
-
-  // 7. Forest
   const triggerForest = () => {
     safeConfetti({
         particleCount: 100, spread: 160, origin: { y: 0.6 },
         colors: ['#22c55e', '#15803d', '#86efac'], shapes: ['square'], scalar: 1.1, ticks: 200, gravity: 0.8
     });
   };
-
-  // 8. Ocean
   const triggerOcean = () => {
     const duration = 1500;
     const end = Date.now() + duration;
@@ -485,8 +497,6 @@ export const useAppLogic = () => {
       if (Date.now() < end) requestAnimationFrame(frame);
     }());
   };
-
-  // 9. Galaxy
   const triggerGalaxy = () => {
       safeConfetti({
           particleCount: 100, spread: 360, origin: { x: 0.5, y: 0.5 },
@@ -494,8 +504,6 @@ export const useAppLogic = () => {
           startVelocity: 40, gravity: 0.4, scalar: 1.2, ticks: 100
       });
   };
-
-  // 10. Comet
   const triggerComet = () => {
       const end = Date.now() + 800;
       (function frame() {
@@ -506,8 +514,6 @@ export const useAppLogic = () => {
         if (Date.now() < end) requestAnimationFrame(frame);
       }());
   };
-
-  // 11. Rainbow
   const triggerRainbow = () => {
       const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
       safeConfetti({
@@ -515,8 +521,6 @@ export const useAppLogic = () => {
           colors: colors, shapes: ['circle'], startVelocity: 45, gravity: 0.9
       });
   };
-
-  // 12. Fountain
   const triggerFountain = () => {
       const duration = 1500;
       const end = Date.now() + duration;
@@ -528,16 +532,12 @@ export const useAppLogic = () => {
         if (Date.now() < end) requestAnimationFrame(frame);
       }());
   };
-
-  // 13. Giant
   const triggerGiant = () => {
       safeConfetti({
           particleCount: 25, spread: 90, origin: { y: 0.6 },
           scalar: 4, colors: ['#f472b6', '#22d3ee', '#fbbf24'], shapes: ['circle']
       });
   };
-
-  // 14. Slow Motion
   const triggerSlowMotion = () => {
       safeConfetti({
           particleCount: 80, spread: 150, origin: { y: 0.6 },
@@ -545,8 +545,6 @@ export const useAppLogic = () => {
           colors: ['#94a3b8', '#cbd5e1', '#64748b'], shapes: ['square']
       });
   };
-
-  // 15. Pixel Art
   const triggerPixelArt = () => {
       safeConfetti({
           particleCount: 200, spread: 360, origin: { x: 0.5, y: 0.5 },

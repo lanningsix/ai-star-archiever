@@ -1,3 +1,4 @@
+
 import { CLOUD_API_URL } from '../constants';
 import { AppState, Task, Reward, Transaction, AvatarState, WishlistGoal } from '../types';
 
@@ -26,7 +27,7 @@ export const cloudService = {
   },
 
   // Load data from Backend (Aggregated or Scoped)
-  loadData: async (familyId: string, scope: string = 'all'): Promise<CloudData | null> => {
+  loadData: async (familyId: string, scope: string = 'all', date?: string): Promise<CloudData | null> => {
     if (CLOUD_API_URL.includes('example')) {
         console.warn('Cloud Sync Skipped: API URL is not configured in constants.ts');
         return null;
@@ -35,8 +36,13 @@ export const cloudService = {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      // Append scope parameter
-      const response = await fetch(`${CLOUD_API_URL}?familyId=${familyId}&scope=${scope}`, {
+      // Append scope parameter and optional date
+      let url = `${CLOUD_API_URL}?familyId=${familyId}&scope=${scope}`;
+      if (date) {
+        url += `&date=${date}`;
+      }
+
+      const response = await fetch(url, {
         signal: controller.signal
       });
       
