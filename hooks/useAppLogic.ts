@@ -203,8 +203,8 @@ export const useAppLogic = () => {
             case 'category_count':
                if (ach.categoryFilter) {
                  let count = 0;
-                 Object.values(logs).forEach(dayLog => {
-                     dayLog.forEach(tid => {
+                 Object.values(logs).forEach((dayLog: unknown) => {
+                     (dayLog as string[]).forEach(tid => {
                          const t = tasks.find(tt => tt.id === tid);
                          if (t && t.category === ach.categoryFilter) count++;
                      });

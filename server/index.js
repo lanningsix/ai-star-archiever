@@ -35,6 +35,7 @@ export default {
         // === GET: 读取并组装数据 ===
         if (request.method === "GET") {
           const scope = url.searchParams.get("scope") || "all"; // 'all', 'daily', 'store', 'calendar', 'avatar', 'wishlist'
+          const month = url.searchParams.get("month"); // Optional: YYYY-MM
 
           // 1. 获取基础设置 (Always fetch settings for balance/theme/avatar/stats)
           const settings = await env.DB.prepare("SELECT * FROM settings WHERE family_id = ?").bind(familyId).first();
@@ -63,7 +64,21 @@ export default {
           }
 
           if (scope === 'all' || scope === 'calendar' || scope === 'settings') {
-              promises.push(env.DB.prepare("SELECT * FROM transactions WHERE family_id = ? ORDER BY created_at DESC LIMIT 100").bind(familyId).all().then(r => txResult = r));
+              let txSql = "SELECT * FROM transactions WHERE family_id = ?";
+              const params = [familyId];
+
+              if (month) {
+                  // If month is provided (YYYY-MM), filter by date string
+                  txSql += " AND date LIKE ?";
+                  params.push(`${month}%`);
+                  txSql += " ORDER BY created_at DESC";
+              } else {
+                  // If no month provided, fetch recent history with a much larger limit
+                  // Increased from 100 to 5000 to prevent missing records
+                  txSql += " ORDER BY created_at DESC LIMIT 5000";
+              }
+
+              promises.push(env.DB.prepare(txSql).bind(...params).all().then(r => txResult = r));
           }
 
           await Promise.all(promises);

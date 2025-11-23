@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { CelebrationOverlay } from './components/CelebrationOverlay';
@@ -78,8 +77,8 @@ export default function App() {
               break;
           case 'category_count':
               if (ach.categoryFilter) {
-                  Object.values(state.logs).forEach(dayLog => {
-                      dayLog.forEach(tid => {
+                  Object.values(state.logs).forEach((dayLog: unknown) => {
+                      (dayLog as string[]).forEach(tid => {
                           const t = state.tasks.find(tt => tt.id === tid);
                           if (t && t.category === ach.categoryFilter) current++;
                       });
