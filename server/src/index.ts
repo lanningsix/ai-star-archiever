@@ -80,8 +80,6 @@ export default {
 
               if (startDate && endDate) {
                   // Filter by specific date range (ISO strings)
-                  // Assuming date column stores ISO string "YYYY-MM-DDTHH:mm:ss.sssZ"
-                  // String comparison works for ISO format
                   txSql += " AND date >= ? AND date <= ?";
                   params.push(startDate);
                   params.push(endDate);
@@ -124,6 +122,17 @@ export default {
              currentSaved: r.current_saved,
              icon: r.icon
           })) : undefined;
+          
+          // 转换 Transactions 字段名 (CamelCase)
+          const transactions = txResult && txResult.results ? txResult.results.map(r => ({
+              id: r.id,
+              date: r.date,
+              description: r.description,
+              amount: r.amount,
+              type: r.type,
+              taskId: r.task_id,
+              isRevoked: r.is_revoked === 1
+          })) : undefined;
 
           // 4. 组装最终 JSON
           const data = {
@@ -138,7 +147,7 @@ export default {
             rewards: rewardsResult ? (rewardsResult.results || []) : undefined,
             wishlist: wishlist,
             logs: logsMap,
-            transactions: txResult ? (txResult.results || []) : undefined
+            transactions: transactions
           };
           
           return new Response(JSON.stringify({ data }), {
@@ -165,14 +174,19 @@ export default {
           // --- Granular Update Scopes ---
           
           if (scope === 'record_log') {
-             const { dateKey, taskId, action, transaction, balance, lifetimeEarnings } = data;
+             const { dateKey, taskId, action, transaction, revokeTransactionId, balance, lifetimeEarnings } = data;
              
              // Update Settings (Balance & Lifetime)
              statements.push(env.DB.prepare("UPDATE settings SET balance = ?, lifetime_earned = ?, updated_at = ? WHERE family_id = ?").bind(balance, lifetimeEarnings, timestamp, familyId));
              
-             // Insert Transaction
+             // Insert Transaction (Standard)
              if (transaction) {
-                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp));
+                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
+             }
+
+             // Update Transaction (Revoke)
+             if (revokeTransactionId) {
+                  statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = 1 WHERE family_id = ? AND id = ?").bind(familyId, revokeTransactionId));
              }
              
              // Modify Log
@@ -199,7 +213,7 @@ export default {
 
              // Insert Transaction
              if (transaction) {
-                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp));
+                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
              }
           }
           else if (scope === 'wishlist_update') {
@@ -210,7 +224,7 @@ export default {
              }
              
              if (transaction) {
-                 statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp));
+                 statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
              }
              
              // Upsert Goal
@@ -224,7 +238,7 @@ export default {
              }
              
              if (transaction) {
-                 statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp));
+                 statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
              }
              
              statements.push(env.DB.prepare("DELETE FROM wishlist_goals WHERE family_id = ? AND id = ?").bind(familyId, goalId));
@@ -316,10 +330,10 @@ export default {
              }
              if (data.transactions) {
                 statements.push(env.DB.prepare("DELETE FROM transactions WHERE family_id = ?").bind(familyId));
-                const txInsert = env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                const txInsert = env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 if (Array.isArray(data.transactions)) {
                     data.transactions.forEach(tx => {
-                        statements.push(txInsert.bind(tx.id, familyId, tx.date, tx.description, tx.amount, tx.type, timestamp));
+                        statements.push(txInsert.bind(tx.id, familyId, tx.date, tx.description, tx.amount, tx.type, timestamp, tx.taskId || null, tx.isRevoked ? 1 : 0));
                     });
                 }
              }

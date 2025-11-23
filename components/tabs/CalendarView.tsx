@@ -36,6 +36,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ currentDate, setCurr
   let dailyPenalty = 0;
 
   dailyTransactions.forEach(tx => {
+      // Skip revoked transactions from calculation
+      if (tx.isRevoked) return;
+
       const isShop = tx.description.includes('兑换') || tx.description.includes('购买');
       const isUndo = tx.description.includes('撤销');
       const absAmount = Math.abs(tx.amount);
@@ -116,7 +119,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ currentDate, setCurr
                     let amountClass = 'text-slate-500';
                     let containerClass = 'bg-white border border-slate-100'; // Base style
 
-                    if (isPenalty) {
+                    if (tx.isRevoked) {
+                        containerClass = 'bg-slate-50 border border-slate-100 opacity-50';
+                        amountClass = 'text-slate-400 line-through';
+                        colorClass = 'text-slate-500 line-through decoration-slate-300 decoration-2';
+                    } else if (isPenalty) {
                         containerClass = 'bg-rose-50 border border-rose-100';
                         amountClass = 'text-rose-500';
                         colorClass = 'text-rose-700';

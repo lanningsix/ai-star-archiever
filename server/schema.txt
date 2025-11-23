@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount INTEGER,
     type TEXT,
     created_at INTEGER,
+    task_id TEXT,
+    is_revoked INTEGER DEFAULT 0,
     PRIMARY KEY (family_id, id)
 );
 
@@ -72,5 +74,5 @@ CREATE TABLE IF NOT EXISTS wishlist_goals (
 
 -- [MIGRATIONS] 
 -- 如果您的数据库中缺少新字段，请在 D1 Console 中运行以下语句：
--- ALTER TABLE settings ADD COLUMN lifetime_earned INTEGER DEFAULT 0;
--- ALTER TABLE settings ADD COLUMN achievements_data TEXT;
+-- ALTER TABLE transactions ADD COLUMN task_id TEXT;
+-- ALTER TABLE transactions ADD COLUMN is_revoked INTEGER DEFAULT 0;

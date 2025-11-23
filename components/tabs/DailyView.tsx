@@ -28,6 +28,9 @@ export const DailyView: React.FC<DailyViewProps> = ({ tasks, logs, transactions,
       const endOfDay = new Date(date); endOfDay.setHours(23,59,59,999);
       
       transactions.forEach(tx => {
+          // Skip revoked transactions from calculation
+          if (tx.isRevoked) return;
+
           const txDate = new Date(tx.date);
           if (txDate >= startOfDay && txDate <= endOfDay) {
               const amount = tx.amount;

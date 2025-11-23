@@ -41,6 +41,8 @@ export interface Transaction {
   description: string;
   amount: number; // Positive (earned) or Negative (spent)
   type: 'EARN' | 'SPEND' | 'PENALTY';
+  taskId?: string; // Optional: Link to specific task
+  isRevoked?: boolean; // Optional: If true, this transaction is considered withdrawn
 }
 
 // Avatar Types

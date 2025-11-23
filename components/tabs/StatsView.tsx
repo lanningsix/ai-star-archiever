@@ -184,7 +184,9 @@ export const StatsView: React.FC<StatsViewProps> = ({
     let totalPenalty = 0;
     let categoryCounts: Record<string, number> = {};
 
+    // Filter out revoked transactions
     const relevantTx = transactions.filter(tx => {
+        if (tx.isRevoked) return false;
         const txDate = new Date(tx.date);
         return txDate >= start && txDate <= end;
     });

@@ -33,8 +33,8 @@ export const NavBar: React.FC<NavBarProps> = ({ activeTab, setActiveTab, themeKe
   const theme = THEMES[themeKey];
   
   return (
-    <nav className="fixed bottom-6 left-4 right-4 z-30">
-        <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-white max-w-3xl mx-auto px-1 h-20 flex justify-around items-center">
+    <nav className="fixed bottom-0 left-0 right-0 z-30">
+        <div className="bg-white/95 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] border-t border-white max-w-3xl mx-auto px-1 h-[5.5rem] flex justify-around items-center pb-4">
             <NavBtn icon={<CheckCircle2 />} label="打卡" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} activeClass={theme.accent} />
             <NavBtn icon={<ShoppingBag />} label="商城" active={activeTab === 'store'} onClick={() => setActiveTab('store')} activeClass={theme.accent} />
             <NavBtn icon={<BarChart2 />} label="分析" active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} activeClass={theme.accent} />

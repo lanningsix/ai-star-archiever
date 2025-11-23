@@ -194,11 +194,11 @@ export const useAppLogic = () => {
                if (balance >= ach.threshold) unlocked = true;
                break;
             case 'redemption_count':
-               const redeemCount = transactions.filter(t => t.amount < 0 && (t.description.includes('兑换') || t.description.includes('购买'))).length;
+               const redeemCount = transactions.filter(t => !t.isRevoked && t.amount < 0 && (t.description.includes('兑换') || t.description.includes('购买'))).length;
                if (redeemCount >= ach.threshold) unlocked = true;
                break;
             case 'mystery_box_count':
-               const boxCount = transactions.filter(t => t.description.includes('盲盒')).length;
+               const boxCount = transactions.filter(t => !t.isRevoked && t.description.includes('盲盒')).length;
                if (boxCount >= ach.threshold) unlocked = true;
                break;
             case 'avatar_count':
@@ -582,7 +582,7 @@ export const useAppLogic = () => {
   };
 
   // Helper to calculate transaction, update local state, and return data for cloud sync
-  const handleTransaction = (amount: number, description: string, dateContext?: Date) => {
+  const handleTransaction = (amount: number, description: string, dateContext?: Date, taskId?: string) => {
     // 1. Calculate New State Values
     const newBalance = balance + amount;
     let newLifetime = lifetimeEarnings;
@@ -591,14 +591,7 @@ export const useAppLogic = () => {
     if (amount > 0 && !description.includes('退回') && !description.includes('撤销')) {
         newLifetime += amount;
     }
-    // Logic: If undoing a completed task (which gave +stars), we should subtract from lifetime if possible, 
-    // but usually lifetime tracks "total ever earned". 
-    // If we want strict "Total Valid Earned", we should subtract. 
-    // Previous logic only added. Let's make it consistent: if we subtract stars because of undo, we reduce lifetime.
-    if (amount < 0 && description.includes('撤销') && description.includes('完成')) {
-        newLifetime = Math.max(0, newLifetime + amount); // amount is negative
-    }
-
+    
     // 2. Create Transaction Object
     let txDate = new Date();
     if (dateContext) {
@@ -614,7 +607,9 @@ export const useAppLogic = () => {
       date: txDate.toISOString(),
       description,
       amount,
-      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买') || description.includes('存入') || description.includes('盲盒')) ? 'SPEND' : 'PENALTY'
+      type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买') || description.includes('存入') || description.includes('盲盒')) ? 'SPEND' : 'PENALTY',
+      taskId,
+      isRevoked: false
     };
 
     // 3. Update Local State
@@ -633,22 +628,83 @@ export const useAppLogic = () => {
 
     let newLog;
     let action: 'add' | 'remove';
-    let txData;
 
     if (isCompleted) {
-      // Undo
+      // Undo Logic
       action = 'remove';
       newLog = currentLog.filter(id => id !== task.id);
-      txData = handleTransaction(-task.stars, `撤销: ${task.title}`, currentDate);
+
+      // 1. Find the original transaction to revoke
+      // We search for a transaction that matches the task, the date, and is not already revoked.
+      const targetTxIndex = transactions.findIndex(t => {
+          if (t.isRevoked) return false;
+          const sameDay = getDateKey(new Date(t.date)) === dateKey;
+          // Match by ID (new data) or Description (legacy data)
+          const sameTask = t.taskId === task.id || t.description.endsWith(`: ${task.title}`);
+          return sameDay && sameTask;
+      });
+      
+      if (targetTxIndex > -1) {
+          const targetTx = transactions[targetTxIndex];
+          
+          // 2. Calculate corrections
+          // Subtract the original amount from balance
+          const newBalance = balance - targetTx.amount;
+          
+          // Subtract from lifetime earnings if it was a positive earning
+          let newLifetime = lifetimeEarnings;
+          if (targetTx.amount > 0) {
+              newLifetime = Math.max(0, lifetimeEarnings - targetTx.amount);
+          }
+
+          // 3. Update Local State (Optimistic)
+          const newTransactions = [...transactions];
+          newTransactions[targetTxIndex] = { ...targetTx, isRevoked: true };
+          
+          setTransactions(newTransactions);
+          setBalance(newBalance);
+          setLifetimeEarnings(newLifetime);
+          setLogs({ ...logs, [dateKey]: newLog });
+
+          // 4. Sync with Server (Revoke)
+          if (familyId && isSyncReady) {
+             syncData('record_log', {
+                dateKey,
+                taskId: task.id,
+                action,
+                revokeTransactionId: targetTx.id,
+                balance: newBalance,
+                lifetimeEarnings: newLifetime
+             }, true);
+          }
+      } else {
+          // Fallback for Legacy Data (or if transaction missing): Create a compensating transaction
+          // This maintains backward compatibility if we can't find the original record to mark as revoked.
+          const txData = handleTransaction(-task.stars, `撤销: ${task.title}`, currentDate);
+          setLogs({ ...logs, [dateKey]: newLog });
+          
+          if (familyId && isSyncReady) {
+            syncData('record_log', {
+                dateKey,
+                taskId: task.id,
+                action,
+                transaction: txData.newTx,
+                balance: txData.newBalance,
+                lifetimeEarnings: txData.newLifetime
+            }, true);
+          }
+      }
+
     } else {
-      // Complete
+      // Complete Logic
       action = 'add';
       setIsInteractionBlocked(true);
       newLog = [...currentLog, task.id];
       
       const isPenalty = task.category === TaskCategory.PENALTY;
       const prefix = isPenalty ? '扣分' : '完成';
-      txData = handleTransaction(task.stars, `${prefix}: ${task.title}`, currentDate);
+      // Pass task.id to handleTransaction
+      const txData = handleTransaction(task.stars, `${prefix}: ${task.title}`, currentDate, task.id);
       
       if (isPenalty) {
         setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
@@ -659,21 +715,21 @@ export const useAppLogic = () => {
         triggerRandomCelebration();
         playRandomSound('success');
       }
-    }
-    
-    // Update Local Logs
-    setLogs({ ...logs, [dateKey]: newLog });
+      
+      // Update Local Logs
+      setLogs({ ...logs, [dateKey]: newLog });
 
-    // Sync Granular Log Action
-    if (familyId && isSyncReady) {
-        syncData('record_log', {
-            dateKey,
-            taskId: task.id,
-            action,
-            transaction: txData.newTx,
-            balance: txData.newBalance,
-            lifetimeEarnings: txData.newLifetime
-        }, true);
+      // Sync Granular Log Action
+      if (familyId && isSyncReady) {
+          syncData('record_log', {
+              dateKey,
+              taskId: task.id,
+              action,
+              transaction: txData.newTx,
+              balance: txData.newBalance,
+              lifetimeEarnings: txData.newLifetime
+          }, true);
+      }
     }
   };
 
