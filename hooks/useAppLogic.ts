@@ -647,11 +647,16 @@ export const useAppLogic = () => {
     const isCompleted = currentLog.includes(task.id);
 
     // Find *most recent* transaction for this task on this day
+    // Updated to support fallback for legacy transactions (no taskId) to ensure we reuse the record
     const relevantTxIndex = transactions.findIndex(t => {
         const txDate = new Date(t.date);
         if (getDateKey(txDate) !== dateKey) return false;
-        // Strict ID match is required for the "update existing" logic
-        return t.taskId === task.id; 
+        
+        // Strict ID match
+        if (t.taskId === task.id) return true;
+        
+        // Fallback: match by title if taskId is missing (Legacy support)
+        return !t.taskId && t.description.includes(task.title);
     });
 
     if (isCompleted) {
@@ -660,19 +665,8 @@ export const useAppLogic = () => {
       setIsInteractionBlocked(true); 
       const newLog = currentLog.filter(id => id !== task.id);
       
-      let targetIndex = relevantTxIndex;
-
-      // Fallback: If strict match fails, try legacy matching for older data
-      if (targetIndex === -1) {
-          targetIndex = transactions.findIndex(t => {
-            const txDate = new Date(t.date);
-            if (getDateKey(txDate) !== dateKey) return false;
-            return !t.taskId && t.description.includes(task.title) && !t.isRevoked;
-          });
-      }
-
-      if (targetIndex > -1) {
-          const targetTx = transactions[targetIndex];
+      if (relevantTxIndex > -1) {
+          const targetTx = transactions[relevantTxIndex];
 
           // Optimistic Update
           const newBalance = balance - targetTx.amount;
@@ -690,7 +684,7 @@ export const useAppLogic = () => {
           };
           
           const newTransactions = [...transactions];
-          newTransactions[targetIndex] = newTx;
+          newTransactions[relevantTxIndex] = newTx;
           // Re-sort transactions by date to keep history consistent
           newTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -710,6 +704,7 @@ export const useAppLogic = () => {
           }
       } else {
           // Legacy/Missing Tx Case: Create compensating transaction
+          // This should happen rarely now with improved finding logic
           const txData = handleTransaction(-task.stars, `撤销: ${task.title}`, currentDate);
           setLogs({ ...logs, [dateKey]: newLog });
           
