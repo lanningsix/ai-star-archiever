@@ -88,12 +88,13 @@ export async function handleSync(request: Request, env: any, familyId: string, s
     // 转换 Transactions 字段名
     const transactions = txResult && txResult.results ? txResult.results.map((r: any) => ({
         id: r.id,
-        date: r.date,
+        date: r.date, // Attribution Date
         description: r.description,
         amount: r.amount,
         type: r.type,
         taskId: r.task_id,
-        isRevoked: r.is_revoked === 1
+        isRevoked: r.is_revoked === 1,
+        timestamp: r.updated_at || r.created_at // Operation Date
     })) : undefined;
 
     // 组装最终 JSON

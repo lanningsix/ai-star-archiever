@@ -58,16 +58,15 @@ export async function handleActivity(request: Request, env: any, familyId: strin
              if (amount > 0) deltaLifetime += diff;
              
              // Update the existing transaction record (Status, Amount, UpdatedAt)
-             // CRITICAL FIX: Do NOT update 'date'. 'date' is the attribution date (when the task belongs to). 
-             // 'updated_at' tracks the operation time.
+             // CRITICAL FIX: Do NOT update 'date' (Attribution Date). Only update 'updated_at' (Operation Date).
              statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = ?, amount = ?, updated_at = ? WHERE family_id = ? AND id = ?")
                 .bind(newRevoked ? 1 : 0, amount, timestamp, familyId, existingTx.id));
 
         } else if (action === 'add' && transaction) {
              // No existing record found, INSERT new transaction
              shouldUpdateBalance = true;
-             statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                .bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId, 0));
+             statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, updated_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, timestamp, transaction.taskId, 0));
              
              deltaBalance += transaction.amount;
              if (transaction.amount > 0) deltaLifetime += transaction.amount;
@@ -77,7 +76,7 @@ export async function handleActivity(request: Request, env: any, familyId: strin
         const { transaction } = data;
         if (transaction) {
             shouldUpdateBalance = true;
-            statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
+            statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, updated_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
             
             deltaBalance += transaction.amount;
             if (transaction.amount > 0 && !transaction.isRevoked) {

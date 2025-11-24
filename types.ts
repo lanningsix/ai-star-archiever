@@ -38,12 +38,13 @@ export interface DailyLog {
 
 export interface Transaction {
   id: string;
-  date: string;
+  date: string; // Attribution Date (Which day it belongs to)
   description: string;
   amount: number; // Positive (earned) or Negative (spent)
   type: 'EARN' | 'SPEND' | 'PENALTY';
   taskId?: string; // Optional: Link to specific task
   isRevoked?: boolean; // Optional: If true, this transaction is considered withdrawn
+  timestamp?: number; // Operation Date (When the action happened)
 }
 
 // Avatar Types

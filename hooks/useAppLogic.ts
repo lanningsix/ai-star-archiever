@@ -623,12 +623,13 @@ export const useAppLogic = () => {
     
     const newTx: Transaction = {
       id: Date.now().toString(),
-      date: txDate.toISOString(),
+      date: txDate.toISOString(), // Attribution Date
       description,
       amount,
       type: amount > 0 ? 'EARN' : amount < 0 && (description.includes('兑换') || description.includes('购买') || description.includes('存入') || description.includes('盲盒')) ? 'SPEND' : 'PENALTY',
       taskId,
-      isRevoked: false
+      isRevoked: false,
+      timestamp: Date.now() // Operation Date
     };
 
     // 3. Update Local State (Optimistic)
@@ -678,9 +679,11 @@ export const useAppLogic = () => {
 
           // Update existing transaction instead of creating a new one
           // CRITICAL FIX: Do NOT update the date to 'now'. Keep it as is to preserve history.
+          // Update timestamp to now to reflect operation time
           const newTx = { 
               ...targetTx, 
-              isRevoked: true
+              isRevoked: true,
+              timestamp: Date.now()
           };
           
           const newTransactions = [...transactions];
@@ -734,9 +737,11 @@ export const useAppLogic = () => {
           if (targetTx.amount > 0) newLifetime += targetTx.amount;
 
           // CRITICAL FIX: Keep original date to preserve history.
+          // Update timestamp to now to reflect operation time
           const newTx = { 
             ...targetTx, 
-            isRevoked: false
+            isRevoked: false,
+            timestamp: Date.now()
           };
 
           const newTransactions = [...transactions];

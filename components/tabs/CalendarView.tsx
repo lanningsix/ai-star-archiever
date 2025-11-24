@@ -147,11 +147,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ currentDate, setCurr
                          colorClass = 'text-slate-700';
                     }
 
+                    // Display Time Logic: Prioritize updated_at/timestamp, fallback to date
+                    const displayTime = tx.timestamp || new Date(tx.date).getTime();
+                    const dateObj = new Date(displayTime);
+                    const isDiffDay = dateObj.getDate() !== new Date(tx.date).getDate();
+
                     return (
                         <div key={tx.id} className={`flex justify-between items-center p-3 rounded-2xl shadow-sm ${containerClass}`}>
                             <div>
                                 <p className={`font-bold text-base mb-0.5 ${colorClass}`}>{tx.description}</p>
-                                <p className="text-xs text-slate-400 font-medium">{new Date(tx.date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</p>
+                                <p className="text-xs text-slate-400 font-medium flex items-center">
+                                    {dateObj.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                                    {isDiffDay && (
+                                        <span className="ml-1 text-[10px] text-slate-300 bg-slate-100 px-1 rounded-sm">
+                                            {dateObj.getMonth() + 1}/{dateObj.getDate()}
+                                        </span>
+                                    )}
+                                </p>
                             </div>
                             <span className={`font-cute text-xl ${amountClass}`}>
                                 {tx.amount > 0 ? '+' : ''}{tx.amount}
