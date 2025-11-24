@@ -646,60 +646,70 @@ export const useAppLogic = () => {
     const currentLog = logs[dateKey] || [];
     const isCompleted = currentLog.includes(task.id);
 
-    let newLog;
-    let action: 'add' | 'remove';
+    // Find *most recent* transaction for this task on this day
+    const relevantTxIndex = transactions.findIndex(t => {
+        const txDate = new Date(t.date);
+        if (getDateKey(txDate) !== dateKey) return false;
+        // Strict ID match is required for the "update existing" logic
+        return t.taskId === task.id; 
+    });
 
     if (isCompleted) {
-      // Undo Logic
-      action = 'remove';
-      setIsInteractionBlocked(true); // Add loading state
-      newLog = currentLog.filter(id => id !== task.id);
-
-      // 1. Find the original transaction to revoke
-      const targetTxIndex = transactions.findIndex(t => {
-          if (t.isRevoked) return false;
-          // Check if transaction date is same day as current view date
-          const txDate = new Date(t.date);
-          const txDateKey = getDateKey(txDate);
-          if (txDateKey !== dateKey) return false;
-
-          // Match by ID (new data) or Description (legacy data)
-          const sameTask = t.taskId === task.id || (t.description.includes(task.title) && (t.type === 'EARN' || t.type === 'PENALTY'));
-          return sameTask;
-      });
+      // --- UNDO (Toggle OFF) ---
+      const action = 'remove';
+      setIsInteractionBlocked(true); 
+      const newLog = currentLog.filter(id => id !== task.id);
       
-      if (targetTxIndex > -1) {
-          const targetTx = transactions[targetTxIndex];
-          
-          // 2. Calculate corrections locally (Optimistic)
+      let targetIndex = relevantTxIndex;
+
+      // Fallback: If strict match fails, try legacy matching for older data
+      if (targetIndex === -1) {
+          targetIndex = transactions.findIndex(t => {
+            const txDate = new Date(t.date);
+            if (getDateKey(txDate) !== dateKey) return false;
+            return !t.taskId && t.description.includes(task.title) && !t.isRevoked;
+          });
+      }
+
+      if (targetIndex > -1) {
+          const targetTx = transactions[targetIndex];
+
+          // Optimistic Update
           const newBalance = balance - targetTx.amount;
-          
           let newLifetime = lifetimeEarnings;
+          // Only reduce lifetime if we are revoking a positive gain
           if (targetTx.amount > 0) {
               newLifetime = Math.max(0, lifetimeEarnings - targetTx.amount);
           }
 
-          // 3. Update Local State (Optimistic)
-          const newTransactions = [...transactions];
-          newTransactions[targetTxIndex] = { ...targetTx, isRevoked: true };
+          // Update existing transaction instead of creating a new one
+          const newTx = { 
+              ...targetTx, 
+              isRevoked: true, 
+              date: new Date().toISOString() 
+          };
           
+          const newTransactions = [...transactions];
+          newTransactions[targetIndex] = newTx;
+          // Re-sort transactions by date to keep history consistent
+          newTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
           setTransactions(newTransactions);
           setBalance(newBalance);
           setLifetimeEarnings(newLifetime);
           setLogs({ ...logs, [dateKey]: newLog });
 
-          // 4. Sync with Server (Revoke)
-          // Do NOT send 'balance' or 'lifetimeEarnings' to rely on backend calculation
+          // Sync with Server (Update Transaction)
           if (familyId && isSyncReady) {
              syncData('record_log', {
                 dateKey,
                 taskId: task.id,
                 action,
-                revokeTransactionId: targetTx.id
+                updateTransaction: { id: targetTx.id, isRevoked: true, date: newTx.date }
              }, true);
           }
       } else {
-          // Fallback for Legacy Data (or if transaction missing): Create a compensating transaction
+          // Legacy/Missing Tx Case: Create compensating transaction
           const txData = handleTransaction(-task.stars, `撤销: ${task.title}`, currentDate);
           setLogs({ ...logs, [dateKey]: newLog });
           
@@ -712,44 +722,87 @@ export const useAppLogic = () => {
             }, true);
           }
       }
-      
-      // Clear loading state after delay
       setTimeout(() => setIsInteractionBlocked(false), 500);
 
     } else {
-      // Complete Logic
-      action = 'add';
+      // --- COMPLETE (Toggle ON) ---
+      const action = 'add';
       setIsInteractionBlocked(true);
-      newLog = [...currentLog, task.id];
+      const newLog = [...currentLog, task.id];
       
-      const isPenalty = task.category === TaskCategory.PENALTY;
-      const prefix = isPenalty ? '扣分' : '完成';
-      // Pass task.id to handleTransaction
-      const txData = handleTransaction(task.stars, `${prefix}: ${task.title}`, currentDate, task.id);
-      
-      if (isPenalty) {
-        setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
-        triggerRainConfetti();
-        playRandomSound('penalty');
-      } else {
-        setShowCelebration({ show: true, points: task.stars, type: 'success' });
-        triggerRandomCelebration();
-        playRandomSound('success');
-      }
-      
-      // Update Local Logs
-      setLogs({ ...logs, [dateKey]: newLog });
+      if (relevantTxIndex > -1) {
+          // Found existing record (likely Revoked). Restore it!
+          const targetTx = transactions[relevantTxIndex];
+          
+          const newBalance = balance + targetTx.amount;
+          let newLifetime = lifetimeEarnings;
+          if (targetTx.amount > 0) newLifetime += targetTx.amount;
 
-      // Sync Granular Log Action
-      // Do NOT send 'balance' to rely on backend calculation
-      if (familyId && isSyncReady) {
-          syncData('record_log', {
-              dateKey,
-              taskId: task.id,
-              action,
-              transaction: txData.newTx
-          }, true);
+          const newTx = { 
+            ...targetTx, 
+            isRevoked: false, 
+            date: new Date().toISOString() 
+          };
+
+          const newTransactions = [...transactions];
+          newTransactions[relevantTxIndex] = newTx;
+          newTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+          setTransactions(newTransactions);
+          setBalance(newBalance);
+          setLifetimeEarnings(newLifetime);
+          setLogs({ ...logs, [dateKey]: newLog });
+
+          // Sync: Update Transaction status
+          if (familyId && isSyncReady) {
+             syncData('record_log', {
+                dateKey,
+                taskId: task.id,
+                action,
+                updateTransaction: { id: targetTx.id, isRevoked: false, date: newTx.date }
+             }, true);
+          }
+
+          // Celebration
+          const isPenalty = task.category === TaskCategory.PENALTY;
+          if (isPenalty) {
+              setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
+              triggerRainConfetti();
+              playRandomSound('penalty');
+          } else {
+              setShowCelebration({ show: true, points: task.stars, type: 'success' });
+              triggerRandomCelebration();
+              playRandomSound('success');
+          }
+      } else {
+          // No existing record. Create New.
+          const isPenalty = task.category === TaskCategory.PENALTY;
+          const prefix = isPenalty ? '扣分' : '完成';
+          // Pass task.id to handleTransaction
+          const txData = handleTransaction(task.stars, `${prefix}: ${task.title}`, currentDate, task.id);
+          
+          if (isPenalty) {
+            setShowCelebration({ show: true, points: task.stars, type: 'penalty' });
+            triggerRainConfetti();
+            playRandomSound('penalty');
+          } else {
+            setShowCelebration({ show: true, points: task.stars, type: 'success' });
+            triggerRandomCelebration();
+            playRandomSound('success');
+          }
+          
+          setLogs({ ...logs, [dateKey]: newLog });
+
+          if (familyId && isSyncReady) {
+              syncData('record_log', {
+                  dateKey,
+                  taskId: task.id,
+                  action,
+                  transaction: txData.newTx
+              }, true);
+          }
       }
+      setTimeout(() => setIsInteractionBlocked(false), 500);
     }
   };
 

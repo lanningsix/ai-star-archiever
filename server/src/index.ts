@@ -178,7 +178,7 @@ export default {
           // --- Granular Update Scopes with Atomic Balance Calculation ---
           
           if (scope === 'record_log') {
-             const { dateKey, taskId, action, transaction, revokeTransactionId } = data;
+             const { dateKey, taskId, action, transaction, revokeTransactionId, updateTransaction } = data;
              
              // Insert Transaction (Standard)
              if (transaction) {
@@ -186,18 +186,55 @@ export default {
                   statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
                   
                   deltaBalance += transaction.amount;
-                  // Only add to lifetime if it's positive and not a revocation
                   if (transaction.amount > 0 && !transaction.isRevoked) {
                       deltaLifetime += transaction.amount;
                   }
              }
 
-             // Update Transaction (Revoke) - Calculate delta from DB
-             if (revokeTransactionId) {
+             // Update Transaction (Revoke/Restore) - New Generic Way
+             if (updateTransaction) {
+                 const { id, isRevoked, date } = updateTransaction;
+                 const originalTx = await env.DB.prepare("SELECT amount, is_revoked FROM transactions WHERE id = ? AND family_id = ?").bind(id, familyId).first();
+                 
+                 if (originalTx) {
+                     shouldUpdateBalance = true;
+                     const oldRevoked = originalTx.is_revoked === 1;
+                     const newRevoked = isRevoked;
+                     
+                     if (oldRevoked !== newRevoked) {
+                         const amount = originalTx.amount;
+                         // If we are Revoking (0->1): subtract amount
+                         // If we are Restoring (1->0): add amount
+                         
+                         const sign = newRevoked ? -1 : 1;
+                         // Reverse effect of amount
+                         deltaBalance -= (amount * sign); 
+                         // Note: Logic above: If I revoke (1), sign is -1. deltaBalance -= amount * -1 => deltaBalance += amount. WRONG.
+                         // Wait.
+                         // Active -> Revoked: Lose points.
+                         // Active (amount 10). Revoked (0). Delta = -10.
+                         // Logic: effectiveOld = active ? amount : 0; effectiveNew = revoked ? 0 : amount.
+                         
+                         const effectiveOld = oldRevoked ? 0 : amount;
+                         const effectiveNew = newRevoked ? 0 : amount;
+                         const diff = effectiveNew - effectiveOld;
+                         
+                         deltaBalance += diff;
+                         
+                         if (amount > 0) {
+                             deltaLifetime += diff;
+                         }
+                     }
+                     
+                     statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = ?, date = ?, updated_at = ? WHERE family_id = ? AND id = ?").bind(newRevoked ? 1 : 0, date, timestamp, familyId, id));
+                 }
+             }
+
+             // Legacy Revoke (Backward compatibility fallback if needed, though updateTransaction is preferred)
+             if (revokeTransactionId && !updateTransaction) {
                   const originalTx = await env.DB.prepare("SELECT amount FROM transactions WHERE id = ? AND family_id = ?").bind(revokeTransactionId, familyId).first();
                   if (originalTx) {
                       shouldUpdateBalance = true;
-                      // Reverse the effect
                       deltaBalance -= originalTx.amount;
                       if (originalTx.amount > 0) {
                           deltaLifetime -= originalTx.amount;
