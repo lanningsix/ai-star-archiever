@@ -39,7 +39,8 @@ export async function handleSync(request: Request, env: any, familyId: string, s
         promises.push(env.DB.prepare("SELECT * FROM wishlist_goals WHERE family_id = ?").bind(familyId).all().then((r: any) => wishlistResult = r));
     }
 
-    if (scope === 'all' || scope === 'calendar' || scope === 'settings' || scope === 'activity') {
+    // UPDATED: Added 'daily' here so transactions are fetched for the daily view stats
+    if (scope === 'all' || scope === 'calendar' || scope === 'settings' || scope === 'activity' || scope === 'daily') {
         let txSql = "SELECT * FROM transactions WHERE family_id = ?";
         const params: any[] = [familyId];
 
