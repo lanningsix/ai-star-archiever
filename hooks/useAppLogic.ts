@@ -677,10 +677,10 @@ export const useAppLogic = () => {
           }
 
           // Update existing transaction instead of creating a new one
+          // CRITICAL FIX: Do NOT update the date to 'now'. Keep it as is to preserve history.
           const newTx = { 
               ...targetTx, 
-              isRevoked: true, 
-              date: new Date().toISOString() 
+              isRevoked: true
           };
           
           const newTransactions = [...transactions];
@@ -733,10 +733,10 @@ export const useAppLogic = () => {
           let newLifetime = lifetimeEarnings;
           if (targetTx.amount > 0) newLifetime += targetTx.amount;
 
+          // CRITICAL FIX: Keep original date to preserve history.
           const newTx = { 
             ...targetTx, 
-            isRevoked: false, 
-            date: new Date().toISOString() 
+            isRevoked: false
           };
 
           const newTransactions = [...transactions];
@@ -774,6 +774,7 @@ export const useAppLogic = () => {
           const isPenalty = task.category === TaskCategory.PENALTY;
           const prefix = isPenalty ? '扣分' : '完成';
           // Pass task.id to handleTransaction
+          // handleTransaction uses `currentDate` which is correctly set by the DateNavigator
           const txData = handleTransaction(task.stars, `${prefix}: ${task.title}`, currentDate, task.id);
           
           if (isPenalty) {

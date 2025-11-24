@@ -57,9 +57,11 @@ export async function handleActivity(request: Request, env: any, familyId: strin
              // Lifetime earnings should only track positive flows
              if (amount > 0) deltaLifetime += diff;
              
-             // Update the existing transaction record (Status, Amount, Date to now)
-             statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = ?, amount = ?, date = ?, updated_at = ? WHERE family_id = ? AND id = ?")
-                .bind(newRevoked ? 1 : 0, amount, new Date().toISOString(), timestamp, familyId, existingTx.id));
+             // Update the existing transaction record (Status, Amount, UpdatedAt)
+             // CRITICAL FIX: Do NOT update 'date'. 'date' is the attribution date (when the task belongs to). 
+             // 'updated_at' tracks the operation time.
+             statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = ?, amount = ?, updated_at = ? WHERE family_id = ? AND id = ?")
+                .bind(newRevoked ? 1 : 0, amount, timestamp, familyId, existingTx.id));
 
         } else if (action === 'add' && transaction) {
              // No existing record found, INSERT new transaction
