@@ -20,7 +20,6 @@ import { OnboardingModal } from './components/modals/OnboardingModal';
 import { TaskModal } from './components/modals/TaskModal';
 import { RewardModal } from './components/modals/RewardModal';
 import { ConfirmModal } from './components/modals/ConfirmModal';
-import { ParentalGateModal } from './components/modals/ParentalGateModal';
 import { WishlistModal } from './components/modals/WishlistModal';
 import { AchievementModal } from './components/modals/AchievementModal';
 import { MysteryBoxModal } from './components/modals/MysteryBoxModal';
@@ -34,7 +33,6 @@ export default function App() {
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const [isWishlistModalOpen, setIsWishlistModalOpen] = useState(false);
   const [isNameModalOpen, setIsNameModalOpen] = useState(!localStorage.getItem('app_family_id') && !localStorage.getItem('app_username'));
-  const [isParentalLockOpen, setIsParentalLockOpen] = useState(false);
   
   // Achievement View State (Hosted here to ensure correct z-index context)
   const [viewAchievement, setViewAchievement] = useState<Achievement | null>(null);
@@ -59,11 +57,7 @@ export default function App() {
   };
 
   const handleTabChange = (tab: 'daily' | 'store' | 'calendar' | 'settings' | 'stats') => {
-      if (tab === 'settings') {
-          setIsParentalLockOpen(true);
-      } else {
-          actions.setActiveTab(tab);
-      }
+      actions.setActiveTab(tab);
   };
 
   // Helper to calculate progress for an achievement
@@ -154,16 +148,6 @@ export default function App() {
          onConfirm={confirmState.onConfirm}
          onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
          isDanger={confirmState.isDanger}
-      />
-
-      {/* Parental Gate */}
-      <ParentalGateModal 
-          isOpen={isParentalLockOpen}
-          onClose={() => setIsParentalLockOpen(false)}
-          onSuccess={() => {
-              setIsParentalLockOpen(false);
-              actions.setActiveTab('settings');
-          }}
       />
 
       <Header balance={state.balance} userName={state.userName} themeKey={state.themeKey} streak={state.streak} />

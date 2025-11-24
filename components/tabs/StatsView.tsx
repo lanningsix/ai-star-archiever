@@ -196,7 +196,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
         const bucket = dataPoints.find(dp => txDate >= dp.startCtx && txDate <= dp.endCtx);
         
         const amount = Math.abs(tx.amount);
-        const isShop = tx.description.includes('兑换') || tx.description.includes('购买');
+        const isShop = tx.description.includes('兑换') || tx.description.includes('购买') || tx.description.includes('存入') || tx.description.includes('盲盒');
         const isUndo = tx.description.includes('撤销');
         
         if (bucket) {

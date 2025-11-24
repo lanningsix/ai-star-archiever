@@ -39,7 +39,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ currentDate, setCurr
       // Skip revoked transactions from calculation
       if (tx.isRevoked) return;
 
-      const isShop = tx.description.includes('兑换') || tx.description.includes('购买');
+      const isShop = tx.description.includes('兑换') || tx.description.includes('购买') || tx.description.includes('存入') || tx.description.includes('盲盒');
       const isUndo = tx.description.includes('撤销');
       const absAmount = Math.abs(tx.amount);
       
@@ -47,7 +47,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ currentDate, setCurr
           // Positive Transaction
           if (isUndo) {
               // We are undoing a negative transaction (Penalty or Spend)
-              if (tx.description.includes('兑换') || tx.description.includes('购买')) {
+              if (tx.description.includes('兑换') || tx.description.includes('购买') || tx.description.includes('存入') || tx.description.includes('盲盒')) {
                   dailySpent -= absAmount;
               } else {
                   // Assume undoing a penalty task
@@ -110,7 +110,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ currentDate, setCurr
            </h3>
            <div className="space-y-2">
                 {dailyTransactions.map(tx => {
-                    const isShop = tx.description.includes('兑换') || tx.description.includes('购买');
+                    const isShop = tx.description.includes('兑换') || tx.description.includes('购买') || tx.description.includes('存入') || tx.description.includes('盲盒');
                     const isUndo = tx.description.includes('撤销');
                     // Detect if it's a penalty deduction (not undo, not shop, negative)
                     const isPenalty = tx.amount < 0 && !isUndo && !isShop;

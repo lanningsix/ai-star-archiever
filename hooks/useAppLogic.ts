@@ -435,6 +435,7 @@ export const useAppLogic = () => {
   useEffect(() => {
     if (!familyId || !isSyncReady || unlockedAchievements.length === 0) return;
     const t = setTimeout(() => {
+        // Send only unlockedAchievements to merge/update
         syncData('activity', { unlockedAchievements }, true);
     }, 2000);
     return () => clearTimeout(t);
@@ -651,10 +652,10 @@ export const useAppLogic = () => {
     if (isCompleted) {
       // Undo Logic
       action = 'remove';
+      setIsInteractionBlocked(true); // Add loading state
       newLog = currentLog.filter(id => id !== task.id);
 
       // 1. Find the original transaction to revoke
-      // We search for a transaction that matches the task, the date, and is not already revoked.
       const targetTxIndex = transactions.findIndex(t => {
           if (t.isRevoked) return false;
           // Check if transaction date is same day as current view date
@@ -670,7 +671,7 @@ export const useAppLogic = () => {
       if (targetTxIndex > -1) {
           const targetTx = transactions[targetTxIndex];
           
-          // 2. Calculate corrections
+          // 2. Calculate corrections locally (Optimistic)
           const newBalance = balance - targetTx.amount;
           
           let newLifetime = lifetimeEarnings;
@@ -688,14 +689,13 @@ export const useAppLogic = () => {
           setLogs({ ...logs, [dateKey]: newLog });
 
           // 4. Sync with Server (Revoke)
+          // Do NOT send 'balance' or 'lifetimeEarnings' to rely on backend calculation
           if (familyId && isSyncReady) {
              syncData('record_log', {
                 dateKey,
                 taskId: task.id,
                 action,
-                revokeTransactionId: targetTx.id,
-                balance: newBalance, // ignored by backend in new version
-                lifetimeEarnings: newLifetime // ignored by backend in new version
+                revokeTransactionId: targetTx.id
              }, true);
           }
       } else {
@@ -708,12 +708,13 @@ export const useAppLogic = () => {
                 dateKey,
                 taskId: task.id,
                 action,
-                transaction: txData.newTx,
-                balance: txData.newBalance,
-                lifetimeEarnings: txData.newLifetime
+                transaction: txData.newTx
             }, true);
           }
       }
+      
+      // Clear loading state after delay
+      setTimeout(() => setIsInteractionBlocked(false), 500);
 
     } else {
       // Complete Logic
@@ -740,14 +741,13 @@ export const useAppLogic = () => {
       setLogs({ ...logs, [dateKey]: newLog });
 
       // Sync Granular Log Action
+      // Do NOT send 'balance' to rely on backend calculation
       if (familyId && isSyncReady) {
           syncData('record_log', {
               dateKey,
               taskId: task.id,
               action,
-              transaction: txData.newTx,
-              balance: txData.newBalance,
-              lifetimeEarnings: txData.newLifetime
+              transaction: txData.newTx
           }, true);
       }
     }
@@ -760,9 +760,7 @@ export const useAppLogic = () => {
           
           if (familyId && isSyncReady) {
               syncData('record_transaction', {
-                  transaction: txData.newTx,
-                  balance: txData.newBalance,
-                  lifetimeEarnings: txData.newLifetime
+                  transaction: txData.newTx
               }, true);
           }
 
@@ -789,16 +787,10 @@ export const useAppLogic = () => {
 
       // 1. Deduct Cost
       let txData = handleTransaction(-MYSTERY_BOX_COST, '开启神秘盲盒');
-      let finalBalance = txData.newBalance;
-      let finalLifetime = txData.newLifetime;
       
-      // Sync deduction immediately? Or batch?
-      // Better to sync deduction now in case user closes app before reward
       if (familyId && isSyncReady) {
           syncData('record_transaction', {
-              transaction: txData.newTx,
-              balance: finalBalance,
-              lifetimeEarnings: finalLifetime
+              transaction: txData.newTx
           }, true);
       }
       
@@ -818,16 +810,11 @@ export const useAppLogic = () => {
       // 3. Apply Bonus if any
       if (selected.bonusStars) {
           const bonusTxData = handleTransaction(selected.bonusStars, '盲盒大奖');
-          finalBalance = bonusTxData.newBalance;
-          finalLifetime = bonusTxData.newLifetime;
           
           if (familyId && isSyncReady) {
-             // Small delay to ensure order?
              setTimeout(() => {
                  syncData('record_transaction', {
-                    transaction: bonusTxData.newTx,
-                    balance: finalBalance,
-                    lifetimeEarnings: finalLifetime
+                    transaction: bonusTxData.newTx
                  }, true);
              }, 100);
           }
@@ -868,8 +855,7 @@ export const useAppLogic = () => {
       if (familyId && isSyncReady) {
           syncData('wishlist_update', {
               goal: updatedGoal,
-              transaction: txData.newTx,
-              balance: txData.newBalance
+              transaction: txData.newTx
           }, true);
       }
   };
@@ -895,8 +881,7 @@ export const useAppLogic = () => {
       if (familyId && isSyncReady) {
           syncData('wishlist_delete', {
               goalId: id,
-              transaction: txData?.newTx,
-              balance: txData?.newBalance
+              transaction: txData?.newTx
           }, true);
       }
   };
@@ -921,7 +906,12 @@ export const useAppLogic = () => {
         await cloudService.saveData(fid, 'tasks', tasks);
         await cloudService.saveData(fid, 'rewards', rewards);
         await cloudService.saveData(fid, 'wishlist', wishlist);
-        await cloudService.saveData(fid, 'activity', { logs, balance, transactions, lifetimeEarnings, unlockedAchievements });
+        
+        // IMPORTANT: For Activity, we ONLY save unlockedAchievements.
+        // We DO NOT save logs, transactions, or balance here to prevent overwriting
+        // concurrent changes from other devices (Race Condition Fix).
+        // Logs and Transactions are synced granularly via atomic operations.
+        await cloudService.saveData(fid, 'activity', { unlockedAchievements });
         
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('idle'), 2000);

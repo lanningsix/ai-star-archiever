@@ -89,7 +89,7 @@ export const cloudService = {
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000 + (attempt * 1000)); // Increasing timeout
+          const timeoutId = setTimeout(() => controller.abort(), 10000 + (attempt * 1000)); // Increased timeout to 10s+
 
           const response = await fetch(`${CLOUD_API_URL}?familyId=${familyId}`, {
             method: 'POST',

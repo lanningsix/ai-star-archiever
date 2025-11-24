@@ -179,14 +179,14 @@ export default {
           
           if (scope === 'record_log') {
              const { dateKey, taskId, action, transaction, revokeTransactionId } = data;
-             shouldUpdateBalance = true;
              
              // Insert Transaction (Standard)
              if (transaction) {
+                  shouldUpdateBalance = true;
                   statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
                   
                   deltaBalance += transaction.amount;
-                  // Only add to lifetime if it's positive and not a revocation of something else (though usually revocations are negative)
+                  // Only add to lifetime if it's positive and not a revocation
                   if (transaction.amount > 0 && !transaction.isRevoked) {
                       deltaLifetime += transaction.amount;
                   }
@@ -196,6 +196,7 @@ export default {
              if (revokeTransactionId) {
                   const originalTx = await env.DB.prepare("SELECT amount FROM transactions WHERE id = ? AND family_id = ?").bind(revokeTransactionId, familyId).first();
                   if (originalTx) {
+                      shouldUpdateBalance = true;
                       // Reverse the effect
                       deltaBalance -= originalTx.amount;
                       if (originalTx.amount > 0) {
@@ -215,9 +216,9 @@ export default {
           }
           else if (scope === 'record_transaction') {
              const { transaction } = data;
-             shouldUpdateBalance = true;
-
+             
              if (transaction) {
+                  shouldUpdateBalance = true;
                   statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
                   
                   deltaBalance += transaction.amount;
@@ -228,9 +229,9 @@ export default {
           }
           else if (scope === 'wishlist_update') {
              const { goal, transaction } = data;
-             shouldUpdateBalance = true;
              
              if (transaction) {
+                 shouldUpdateBalance = true;
                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
                  
                  deltaBalance += transaction.amount;
@@ -241,9 +242,9 @@ export default {
           }
           else if (scope === 'wishlist_delete') {
              const { goalId, transaction } = data;
-             shouldUpdateBalance = true;
              
              if (transaction) {
+                 shouldUpdateBalance = true;
                  statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
                  
                  deltaBalance += transaction.amount;
@@ -293,7 +294,7 @@ export default {
           }
           else if (scope === 'avatar') {
              const avatarJson = data.avatar ? JSON.stringify(data.avatar) : null;
-             // Legacy direct balance update for avatar if needed, but prefer transactions
+             // Deprecated: Balance update via Avatar scope is discouraged
              if (data.balance !== undefined) {
                 statements.push(env.DB.prepare("UPDATE settings SET avatar_data = ?, balance = ?, updated_at = ? WHERE family_id = ?").bind(avatarJson, data.balance, timestamp, familyId));
              } else {
@@ -301,10 +302,15 @@ export default {
              }
           }
           else if (scope === 'activity') {
-             // Full sync/overwrite for Manual Save
+             // For Manual Save / Partial Updates
+             // We do NOT update balance/transactions here to avoid overwriting remote changes, 
+             // unless explicitly acting as a restore.
+             // We allow updating achievements and logs.
+             
              const fieldsToUpdate = [];
              const values = [];
              
+             // Allow overwriting balance ONLY if explicitly provided (e.g. restore from backup)
              if (data.balance !== undefined) {
                  fieldsToUpdate.push("balance = ?");
                  values.push(data.balance);
@@ -325,8 +331,7 @@ export default {
                  statements.push(env.DB.prepare(`UPDATE settings SET ${fieldsToUpdate.join(", ")} WHERE family_id = ?`).bind(...values));
              }
              
-             // Overwrite logs and transactions logic ... (Keep existing if needed, or assume manual save is rare)
-             // For brevity, keeping existing logic for activity scope roughly as is (absolute sync)
+             // Handle logs (Overwrite)
              if (data.logs) {
                 statements.push(env.DB.prepare("DELETE FROM task_logs WHERE family_id = ?").bind(familyId));
                 const logInsert = env.DB.prepare("INSERT INTO task_logs (family_id, date_key, task_id, created_at) VALUES (?, ?, ?, ?)");
@@ -338,6 +343,8 @@ export default {
                     }
                 }
              }
+             
+             // Handle transactions (Overwrite) - CAUTION: This destroys concurrent history
              if (data.transactions) {
                 statements.push(env.DB.prepare("DELETE FROM transactions WHERE family_id = ?").bind(familyId));
                 const txInsert = env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -358,7 +365,7 @@ export default {
               await env.DB.batch(statements);
           }
           
-          // Return updated balance to client
+          // Return updated balance to client (Source of Truth)
           const finalSettings = await env.DB.prepare("SELECT balance, lifetime_earned FROM settings WHERE family_id = ?").bind(familyId).first();
 
           return new Response(JSON.stringify({ 
