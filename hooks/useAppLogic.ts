@@ -755,6 +755,7 @@ export const useAppLogic = () => {
 
   const redeemReward = (reward: Reward) => {
     if (balance >= reward.cost) {
+      setIsInteractionBlocked(true); // Prevent double click
       try {
           const txData = handleTransaction(-reward.cost, `兑换: ${reward.title}`);
           
@@ -770,8 +771,11 @@ export const useAppLogic = () => {
           });
           showToast(`成功兑换：${reward.title}`, 'success');
           playRandomSound('success');
+          // Short block to prevent spamming
+          setTimeout(() => setIsInteractionBlocked(false), 1000);
       } catch (error) {
           console.error("Redeem error", error);
+          setIsInteractionBlocked(false);
       }
     } else {
       showToast(`星星不够哦！还需要 ${reward.cost - balance} 颗星星。`, 'error');
@@ -784,6 +788,7 @@ export const useAppLogic = () => {
           showToast('星星不够哦！', 'error');
           return;
       }
+      setIsInteractionBlocked(true);
 
       // 1. Deduct Cost
       let txData = handleTransaction(-MYSTERY_BOX_COST, '开启神秘盲盒');
@@ -821,6 +826,8 @@ export const useAppLogic = () => {
       }
 
       setMysteryReward(selected);
+      // Release block after short delay to allow modal to open
+      setTimeout(() => setIsInteractionBlocked(false), 1000);
   };
 
   const depositToWishlist = (goal: WishlistGoal, amount: number) => {
@@ -830,6 +837,8 @@ export const useAppLogic = () => {
           return;
       }
       if (amount <= 0) return;
+
+      setIsInteractionBlocked(true);
 
       const txData = handleTransaction(-amount, `存入心愿: ${goal.title}`);
       
@@ -858,6 +867,7 @@ export const useAppLogic = () => {
               transaction: txData.newTx
           }, true);
       }
+      setTimeout(() => setIsInteractionBlocked(false), 500);
   };
 
   const addWishlistGoal = (goal: WishlistGoal) => {
@@ -872,6 +882,8 @@ export const useAppLogic = () => {
       const goal = wishlist.find(g => g.id === id);
       let txData;
       
+      setIsInteractionBlocked(true);
+
       if (goal && goal.currentSaved > 0) {
           txData = handleTransaction(goal.currentSaved, `退回心愿存款: ${goal.title}`);
           showToast(`退回了 ${goal.currentSaved} 颗星星`, 'info');
@@ -884,13 +896,19 @@ export const useAppLogic = () => {
               transaction: txData?.newTx
           }, true);
       }
+      setTimeout(() => setIsInteractionBlocked(false), 500);
   };
 
   const createFamily = () => {
+    setIsInteractionBlocked(true);
     const newId = cloudService.generateFamilyId();
     setFamilyId(newId);
     setIsSyncReady(true);
-    setTimeout(() => manualSaveAll(newId), 100);
+    setTimeout(() => {
+        manualSaveAll(newId).finally(() => {
+            setIsInteractionBlocked(false);
+        });
+    }, 100);
     showToast('家庭ID已创建，记得保存哦！', 'success');
   };
 
@@ -900,6 +918,7 @@ export const useAppLogic = () => {
         return;
     }
     setSyncStatus('syncing');
+    setIsInteractionBlocked(true);
     
     try {
         await cloudService.saveData(fid, 'settings', { userName, themeKey });
@@ -920,6 +939,8 @@ export const useAppLogic = () => {
         console.error("Manual save failed", error);
         setSyncStatus('error');
         showToast('上传失败，请稍后再试', 'error');
+    } finally {
+        setIsInteractionBlocked(false);
     }
   };
 

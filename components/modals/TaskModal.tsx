@@ -1,25 +1,41 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Star } from 'lucide-react';
-import { TaskCategory } from '../../types';
+import { TaskCategory, Task } from '../../types';
 import { CATEGORY_STYLES, TASK_ICONS } from '../../constants';
 import { ToastType } from '../Toast';
 import { Theme } from '../../styles/themes';
 
 interface TaskModalProps {
     isOpen: boolean;
+    initialData?: Task | null;
     onClose: () => void;
     onSave: (task: { title: string, stars: number, category: TaskCategory, icon?: string }) => void;
     onShowToast: (msg: string, type: ToastType) => void;
 }
 
-export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, onShowToast }) => {
+export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, initialData, onClose, onSave, onShowToast }) => {
     const [newTask, setNewTask] = useState<{ title: string, stars: number, category: TaskCategory, icon: string }>({ 
         title: '', 
         stars: 2, 
         category: TaskCategory.LIFE,
         icon: '📝'
     });
+
+    useEffect(() => {
+        if (isOpen) {
+            if (initialData) {
+                setNewTask({
+                    title: initialData.title,
+                    stars: Math.abs(initialData.stars),
+                    category: initialData.category,
+                    icon: initialData.icon || '📝'
+                });
+            } else {
+                setNewTask({ title: '', stars: 2, category: TaskCategory.LIFE, icon: '📝' });
+            }
+        }
+    }, [isOpen, initialData]);
 
     if (!isOpen) return null;
 
@@ -44,7 +60,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
         }
 
         onSave({ ...newTask, stars: finalStars });
-        onShowToast("任务添加成功！", 'success');
+        // Toast handled by parent for edit vs create distinction
         setNewTask({ title: '', stars: 2, category: TaskCategory.LIFE, icon: '📝' });
     };
 
@@ -54,14 +70,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
             <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-fade-in border-4 border-white max-h-[90vh] overflow-y-auto">
                 <div className={`p-4 flex justify-between items-center ${isPenalty ? 'bg-rose-50' : 'bg-lime-50'}`}>
-                    <h3 className={`font-cute text-xl ${isPenalty ? 'text-rose-700' : 'text-lime-700'}`}>✨ 添加新任务</h3>
+                    <h3 className={`font-cute text-xl ${isPenalty ? 'text-rose-700' : 'text-lime-700'}`}>
+                        {initialData ? '📝 编辑任务' : '✨ 添加新任务'}
+                    </h3>
                     <button onClick={onClose} className="bg-white p-1.5 rounded-full text-slate-400 hover:text-slate-600 shadow-sm"><X size={20}/></button>
                 </div>
                 <div className="p-6 space-y-5">
                     <div>
                         <label className="block text-xs text-slate-400 font-bold uppercase mb-2 ml-2">任务名称</label>
                         <input 
-                            autoFocus
+                            autoFocus={!initialData}
                             value={newTask.title}
                             onChange={e => setNewTask({...newTask, title: e.target.value})}
                             className={`w-full p-3 rounded-xl bg-slate-50 border-2 border-transparent focus:bg-white outline-none transition-all text-lg font-bold text-slate-700 placeholder-slate-300 ${isPenalty ? 'focus:border-rose-300' : 'focus:border-lime-300'}`}
@@ -148,7 +166,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, o
                         onClick={handleSave}
                         className={`w-full py-3.5 text-white rounded-xl font-cute text-lg shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] ${isPenalty ? 'bg-rose-400 hover:bg-rose-500 shadow-rose-200' : 'bg-lime-400 hover:bg-lime-500 shadow-lime-200'}`}
                     >
-                        保存任务
+                        {initialData ? '保存修改' : '添加任务'}
                     </button>
                 </div>
             </div>

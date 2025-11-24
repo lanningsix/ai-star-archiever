@@ -1,20 +1,36 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Star } from 'lucide-react';
 import { Theme } from '../../styles/themes';
 import { COMMON_EMOJIS } from '../../constants';
 import { ToastType } from '../Toast';
+import { Reward } from '../../types';
 
 interface RewardModalProps {
     isOpen: boolean;
+    initialData?: Reward | null;
     onClose: () => void;
     onSave: (reward: { title: string, cost: number, icon: string }) => void;
     theme: Theme;
     onShowToast: (msg: string, type: ToastType) => void;
 }
 
-export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, onClose, onSave, theme, onShowToast }) => {
+export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, initialData, onClose, onSave, theme, onShowToast }) => {
     const [newReward, setNewReward] = useState({ title: '', cost: 50, icon: '🎁' });
+
+    useEffect(() => {
+        if (isOpen) {
+            if (initialData) {
+                setNewReward({
+                    title: initialData.title,
+                    cost: initialData.cost,
+                    icon: initialData.icon || '🎁'
+                });
+            } else {
+                setNewReward({ title: '', cost: 50, icon: '🎁' });
+            }
+        }
+    }, [isOpen, initialData]);
 
     if (!isOpen) return null;
 
@@ -26,7 +42,7 @@ export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, onClose, onSav
         // Ensure cost is within bounds before saving
         const finalCost = Math.min(500, Math.max(1, newReward.cost || 1));
         onSave({ ...newReward, cost: finalCost });
-        onShowToast("奖励添加成功！", 'success');
+        // Toast handled by parent
         setNewReward({ title: '', cost: 50, icon: '🎁' });
     };
 
@@ -34,14 +50,16 @@ export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, onClose, onSav
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
              <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-fade-in border-4 border-white">
                 <div className={`p-4 ${theme.light} flex justify-between items-center`}>
-                    <h3 className={`font-cute text-xl ${theme.accent}`}>🎁 添加新奖励</h3>
+                    <h3 className={`font-cute text-xl ${theme.accent}`}>
+                        {initialData ? '🎁 编辑奖励' : '🎁 添加新奖励'}
+                    </h3>
                     <button onClick={onClose} className="bg-white p-1.5 rounded-full text-slate-400 hover:text-slate-600 shadow-sm"><X size={20}/></button>
                 </div>
                 <div className="p-6 space-y-5">
                     <div>
                         <label className="block text-xs text-slate-400 font-bold uppercase mb-2 ml-2">奖励名称</label>
                         <input 
-                            autoFocus
+                            autoFocus={!initialData}
                             value={newReward.title}
                             onChange={e => setNewReward({...newReward, title: e.target.value})}
                             className="w-full p-3 rounded-xl bg-slate-50 border-2 border-transparent focus:bg-white outline-none transition-all text-lg font-bold text-slate-700 placeholder-slate-300 focus:border-current"
@@ -107,7 +125,7 @@ export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, onClose, onSav
                         onClick={handleSave}
                         className={`w-full py-3.5 ${theme.button} text-white rounded-xl font-cute text-lg shadow-lg ${theme.shadow} transition-transform hover:scale-[1.02] active:scale-[0.98]`}
                     >
-                        保存奖励
+                        {initialData ? '保存修改' : '保存奖励'}
                     </button>
                 </div>
              </div>

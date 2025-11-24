@@ -6,7 +6,7 @@ import { NavBar } from './components/NavBar';
 import { useAppLogic } from './hooks/useAppLogic';
 import { THEMES } from './styles/themes';
 import { Toast } from './components/Toast';
-import { Achievement, TaskCategory } from './types';
+import { Achievement, TaskCategory, Task, Reward } from './types';
 
 // Tabs
 import { DailyView } from './components/tabs/DailyView';
@@ -34,6 +34,10 @@ export default function App() {
   const [isWishlistModalOpen, setIsWishlistModalOpen] = useState(false);
   const [isNameModalOpen, setIsNameModalOpen] = useState(!localStorage.getItem('app_family_id') && !localStorage.getItem('app_username'));
   
+  // Edit State
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingReward, setEditingReward] = useState<Reward | null>(null);
+
   // Achievement View State (Hosted here to ensure correct z-index context)
   const [viewAchievement, setViewAchievement] = useState<Achievement | null>(null);
   
@@ -58,6 +62,42 @@ export default function App() {
 
   const handleTabChange = (tab: 'daily' | 'store' | 'calendar' | 'settings' | 'stats') => {
       actions.setActiveTab(tab);
+  };
+
+  const handleOpenTaskModal = (task?: Task) => {
+      setEditingTask(task || null);
+      setIsTaskModalOpen(true);
+  };
+
+  const handleOpenRewardModal = (reward?: Reward) => {
+      setEditingReward(reward || null);
+      setIsRewardModalOpen(true);
+  };
+
+  const handleTaskSave = (taskData: any) => {
+      if (editingTask) {
+          const newTasks = state.tasks.map(t => t.id === editingTask.id ? { ...t, ...taskData } : t);
+          actions.setTasks(newTasks);
+          actions.showToast('任务修改成功', 'success');
+      } else {
+          actions.setTasks([...state.tasks, { id: Date.now().toString(), ...taskData }]);
+          actions.showToast('任务添加成功', 'success');
+      }
+      setIsTaskModalOpen(false);
+      setEditingTask(null);
+  };
+
+  const handleRewardSave = (rewardData: any) => {
+      if (editingReward) {
+          const newRewards = state.rewards.map(r => r.id === editingReward.id ? { ...r, ...rewardData } : r);
+          actions.setRewards(newRewards);
+          actions.showToast('奖励修改成功', 'success');
+      } else {
+          actions.setRewards([...state.rewards, { id: Date.now().toString(), ...rewardData }]);
+          actions.showToast('奖励添加成功', 'success');
+      }
+      setIsRewardModalOpen(false);
+      setEditingReward(null);
   };
 
   // Helper to calculate progress for an achievement
@@ -218,8 +258,8 @@ export default function App() {
                 theme={activeTheme}
                 actions={{
                     openNameModal: () => setIsNameModalOpen(true),
-                    openTaskModal: () => setIsTaskModalOpen(true),
-                    openRewardModal: () => setIsRewardModalOpen(true),
+                    openTaskModal: handleOpenTaskModal,
+                    openRewardModal: handleOpenRewardModal,
                     createFamily: actions.createFamily,
                     joinFamily: actions.handleJoinFamily,
                     manualSave: actions.manualSaveAll,
@@ -260,21 +300,23 @@ export default function App() {
       
       <TaskModal 
         isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
-        onSave={(newTask) => {
-            actions.setTasks([...state.tasks, { id: Date.now().toString(), ...newTask }]);
+        initialData={editingTask}
+        onClose={() => {
             setIsTaskModalOpen(false);
+            setEditingTask(null);
         }}
+        onSave={handleTaskSave}
         onShowToast={actions.showToast}
       />
 
       <RewardModal 
         isOpen={isRewardModalOpen}
-        onClose={() => setIsRewardModalOpen(false)}
-        onSave={(newReward) => {
-            actions.setRewards([...state.rewards, { id: Date.now().toString(), ...newReward }]);
+        initialData={editingReward}
+        onClose={() => {
             setIsRewardModalOpen(false);
+            setEditingReward(null);
         }}
+        onSave={handleRewardSave}
         theme={activeTheme}
         onShowToast={actions.showToast}
       />

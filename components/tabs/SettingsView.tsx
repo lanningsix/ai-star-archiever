@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Settings, User, Edit3, Cloud, RefreshCw, Copy, Upload, Download, Palette, Plus, Trash2, Star } from 'lucide-react';
 import { Theme, ThemeKey, THEMES } from '../../styles/themes';
@@ -18,8 +19,8 @@ interface SettingsViewProps {
   
   actions: {
       openNameModal: () => void;
-      openTaskModal: () => void;
-      openRewardModal: () => void;
+      openTaskModal: (task?: Task) => void;
+      openRewardModal: (reward?: Reward) => void;
       createFamily: () => void;
       joinFamily: (id: string) => void;
       manualSave: () => void;
@@ -205,7 +206,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <div className="flex justify-between items-center mb-2 px-2">
                         <h3 className="font-bold text-slate-600 text-base">任务列表</h3>
                         <button 
-                            onClick={actions.openTaskModal} 
+                            onClick={() => actions.openTaskModal()} 
                             className={`text-white ${theme.button} p-2 rounded-xl ${theme.shadow} shadow-md transition-all`}
                         >
                             <Plus size={20}/>
@@ -222,6 +223,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className={`font-cute text-base ${t.stars > 0 ? 'text-amber-400' : 'text-rose-400'}`}>{t.stars > 0 ? '+' : ''}{t.stars}</span>
+                                    <button 
+                                        onClick={() => actions.openTaskModal(t)}
+                                        className="text-slate-300 hover:text-sky-400 p-1.5"
+                                    >
+                                        <Edit3 size={16}/>
+                                    </button>
                                     <button onClick={() => {
                                         actions.confirm(
                                             "删除任务",
@@ -240,7 +247,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                      <div className="flex justify-between items-center mb-2 px-2">
                         <h3 className="font-bold text-slate-600 text-base">奖励列表</h3>
                         <button 
-                            onClick={actions.openRewardModal} 
+                            onClick={() => actions.openRewardModal()} 
                             className={`text-white ${theme.button} p-2 rounded-xl ${theme.shadow} shadow-md transition-all`}
                         >
                             <Plus size={20}/>
@@ -255,6 +262,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className={`font-cute text-base ${theme.accent} flex items-center gap-1`}>{r.cost} <Star size={12} fill="currentColor"/></span>
+                                    <button 
+                                        onClick={() => actions.openRewardModal(r)}
+                                        className="text-slate-300 hover:text-sky-400 p-1.5"
+                                    >
+                                        <Edit3 size={16}/>
+                                    </button>
                                     <button onClick={() => {
                                         actions.confirm(
                                             "删除奖励",
