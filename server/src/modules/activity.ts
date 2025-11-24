@@ -16,58 +16,59 @@ export async function handleActivity(request: Request, env: any, familyId: strin
     let shouldUpdateBalance = false;
 
     if (scope === 'record_log') {
-        const { dateKey, taskId, action, transaction, revokeTransactionId, updateTransaction } = data;
-        
-        // 1. Insert New Transaction
-        if (transaction) {
-            shouldUpdateBalance = true;
-            statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId || null, transaction.isRevoked ? 1 : 0));
-            
-            deltaBalance += transaction.amount;
-            if (transaction.amount > 0 && !transaction.isRevoked) {
-                deltaLifetime += transaction.amount;
-            }
-        }
+        const { dateKey, taskId, action, transaction, updateTransaction } = data;
+        const inputTx = transaction || updateTransaction; // Get payload data if available
 
-        // 2. Update Existing Transaction (Revoke/Restore)
-        if (updateTransaction) {
-            const { id, isRevoked, date } = updateTransaction;
-            const originalTx = await env.DB.prepare("SELECT amount, is_revoked FROM transactions WHERE id = ? AND family_id = ?").bind(id, familyId).first();
-            
-            if (originalTx) {
-                shouldUpdateBalance = true;
-                const oldRevoked = originalTx.is_revoked === 1;
-                const newRevoked = isRevoked;
-                
-                if (oldRevoked !== newRevoked) {
-                    const amount = originalTx.amount;
-                    // Revoking (0->1): subtract amount | Restoring (1->0): add amount
-                    const diff = (newRevoked ? 0 : amount) - (oldRevoked ? 0 : amount);
-                    
-                    deltaBalance += diff;
-                    if (amount > 0) deltaLifetime += diff;
-                }
-                
-                statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = ?, date = ?, updated_at = ? WHERE family_id = ? AND id = ?").bind(newRevoked ? 1 : 0, date, timestamp, familyId, id));
-            }
-        }
-
-        // 3. Legacy Revoke Support
-        if (revokeTransactionId && !updateTransaction) {
-            const originalTx = await env.DB.prepare("SELECT amount FROM transactions WHERE id = ? AND family_id = ?").bind(revokeTransactionId, familyId).first();
-            if (originalTx) {
-                shouldUpdateBalance = true;
-                deltaBalance -= originalTx.amount;
-                if (originalTx.amount > 0) deltaLifetime -= originalTx.amount;
-                statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = 1 WHERE family_id = ? AND id = ?").bind(familyId, revokeTransactionId));
-            }
-        }
-        
-        // 4. Update Logs
+        // 1. LOGS HANDLING: Idempotent Insert / Delete
         if (action === 'add') {
-            statements.push(env.DB.prepare("INSERT INTO task_logs (family_id, date_key, task_id, created_at) VALUES (?, ?, ?, ?)").bind(familyId, dateKey, taskId, timestamp));
+             // Check if log exists to verify idempotency (don't insert if already there)
+             const existingLog = await env.DB.prepare("SELECT id FROM task_logs WHERE family_id=? AND date_key=? AND task_id=?").bind(familyId, dateKey, taskId).first();
+             if (!existingLog) {
+                 statements.push(env.DB.prepare("INSERT INTO task_logs (family_id, date_key, task_id, created_at) VALUES (?, ?, ?, ?)").bind(familyId, dateKey, taskId, timestamp));
+             }
         } else {
-            statements.push(env.DB.prepare("DELETE FROM task_logs WHERE family_id = ? AND date_key = ? AND task_id = ?").bind(familyId, dateKey, taskId));
+             // For removal, we must delete the log entry as table only stores active logs
+             statements.push(env.DB.prepare("DELETE FROM task_logs WHERE family_id = ? AND date_key = ? AND task_id = ?").bind(familyId, dateKey, taskId));
+        }
+
+        // 2. TRANSACTIONS HANDLING: Single Record Enforcement
+        // Try to find an existing transaction for this task on this day
+        const existingTx = await env.DB.prepare("SELECT * FROM transactions WHERE family_id = ? AND task_id = ? AND date LIKE ?").bind(familyId, taskId, `${dateKey}%`).first();
+
+        if (existingTx) {
+             shouldUpdateBalance = true;
+             
+             // Determine new state
+             const oldRevoked = existingTx.is_revoked === 1;
+             const newRevoked = action === 'remove'; // remove = revoked(1), add = active(0)
+
+             // Determine Amount (Use new amount from payload if available, else fallback to existing)
+             let amount = existingTx.amount;
+             if (inputTx && inputTx.amount !== undefined) amount = inputTx.amount;
+
+             // Calculate Balance Delta based on state change
+             // Effective Value = (isRevoked ? 0 : amount)
+             const effOld = oldRevoked ? 0 : existingTx.amount;
+             const effNew = newRevoked ? 0 : amount;
+             
+             const diff = effNew - effOld;
+             
+             deltaBalance += diff;
+             // Lifetime earnings should only track positive flows
+             if (amount > 0) deltaLifetime += diff;
+             
+             // Update the existing transaction record (Status, Amount, Date to now)
+             statements.push(env.DB.prepare("UPDATE transactions SET is_revoked = ?, amount = ?, date = ?, updated_at = ? WHERE family_id = ? AND id = ?")
+                .bind(newRevoked ? 1 : 0, amount, new Date().toISOString(), timestamp, familyId, existingTx.id));
+
+        } else if (action === 'add' && transaction) {
+             // No existing record found, INSERT new transaction
+             shouldUpdateBalance = true;
+             statements.push(env.DB.prepare("INSERT INTO transactions (id, family_id, date, description, amount, type, created_at, task_id, is_revoked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(transaction.id, familyId, transaction.date, transaction.description, transaction.amount, transaction.type, timestamp, transaction.taskId, 0));
+             
+             deltaBalance += transaction.amount;
+             if (transaction.amount > 0) deltaLifetime += transaction.amount;
         }
     }
     else if (scope === 'record_transaction') {
