@@ -84,6 +84,38 @@ export const StatsView: React.FC<StatsViewProps> = ({
     return date;
   };
 
+  const shiftDate = (amount: number) => {
+      if (!setStatsConfig) return;
+      const newDate = new Date(statsConfig.date);
+      
+      if (statsConfig.type === 'day') {
+          newDate.setDate(newDate.getDate() + amount);
+      } else if (statsConfig.type === 'week') {
+          newDate.setDate(newDate.getDate() + (amount * 7));
+      } else if (statsConfig.type === 'month') {
+          newDate.setMonth(newDate.getMonth() + amount);
+      }
+      setStatsConfig({ ...statsConfig, date: newDate });
+  };
+
+  const dateRangeLabel = useMemo(() => {
+      const d = new Date(statsConfig.date);
+      if (statsConfig.type === 'day') {
+           const weekDay = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+           return `${d.getMonth() + 1}月${d.getDate()}日 周${weekDay}`;
+      }
+      if (statsConfig.type === 'week') {
+          const start = getStartOfWeek(d);
+          const end = new Date(start);
+          end.setDate(end.getDate() + 6);
+          return `${start.getMonth() + 1}月${start.getDate()}日 - ${end.getMonth() + 1}月${end.getDate()}日`;
+      }
+      if (statsConfig.type === 'month') {
+          return `${d.getFullYear()}年 ${d.getMonth() + 1}月`;
+      }
+      return '';
+  }, [statsConfig.date, statsConfig.type]);
+
   // Process Data
   const stats = useMemo(() => {
     let start = new Date(statsConfig.date);
@@ -263,74 +295,68 @@ export const StatsView: React.FC<StatsViewProps> = ({
             </h2>
           </div>
 
-          <div className="bg-white rounded-[1.5rem] p-2 shadow-sm border border-slate-100 mb-4">
+          <div className="bg-white rounded-[2rem] p-3 shadow-sm border border-slate-100 mb-4">
              {/* Type Selector */}
-             <div className="flex gap-1 mb-3 bg-slate-100/50 p-1 rounded-xl">
+             <div className="flex gap-1 mb-3 bg-slate-100/60 p-1.5 rounded-2xl">
                  {(['day', 'week', 'month', 'custom'] as const).map(t => (
                      <button
                         key={t}
                         onClick={() => handleTypeChange(t)}
-                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${statsConfig.type === t ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-500'}`}
+                        className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-300 ${statsConfig.type === t ? 'bg-white shadow-sm text-slate-800 scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}
                      >
                         {t === 'day' ? '日报' : t === 'week' ? '周报' : t === 'month' ? '月报' : '自定义'}
                      </button>
                  ))}
              </div>
 
-             {/* Date Picker Area */}
-             <div className="flex items-center justify-center gap-3">
-                 <Calendar size={18} className="text-slate-400" />
-                 
-                 {statsConfig.type === 'day' && (
+             {/* Date Navigator / Picker Area */}
+             {statsConfig.type !== 'custom' ? (
+                 <div className="flex items-center justify-between bg-slate-50 rounded-2xl p-2 border border-slate-100">
+                     <button 
+                         onClick={() => shiftDate(-1)} 
+                         className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-slate-600 transition-all active:scale-95"
+                     >
+                         <ChevronLeft size={20} strokeWidth={2.5} />
+                     </button>
+                     
+                     <div className="relative flex-1 flex items-center justify-center">
+                         <span className="text-slate-700 font-bold text-base font-cute tracking-wide flex items-center gap-2">
+                            <Calendar size={16} className="text-slate-400 mb-0.5" />
+                            {dateRangeLabel}
+                         </span>
+                         {/* Hidden Native Input for Click-to-Pick */}
+                         <input 
+                            type={statsConfig.type === 'month' ? 'month' : 'date'}
+                            value={statsConfig.type === 'month' ? toMonthInputValue(statsConfig.date) : toDateInputValue(statsConfig.date)}
+                            onChange={handleDateChange}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                         />
+                     </div>
+
+                     <button 
+                        onClick={() => shiftDate(1)} 
+                        className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-slate-600 transition-all active:scale-95"
+                     >
+                         <ChevronRight size={20} strokeWidth={2.5} />
+                     </button>
+                 </div>
+             ) : (
+                 <div className="flex items-center gap-2 bg-slate-50 rounded-2xl p-2.5 border border-slate-100 justify-center">
                      <input 
                         type="date"
-                        value={toDateInputValue(statsConfig.date)}
-                        onChange={handleDateChange}
-                        className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 font-bold text-sm outline-none focus:border-blue-400"
+                        value={statsConfig.customStart ? toDateInputValue(statsConfig.customStart) : ''}
+                        onChange={(e) => handleCustomDateChange('customStart', e.target.value)}
+                        className="bg-white border border-slate-200 rounded-xl px-2 py-2 text-slate-600 font-bold text-xs outline-none focus:border-blue-400 w-full text-center shadow-sm"
                      />
-                 )}
-
-                 {statsConfig.type === 'week' && (
-                     <div className="flex flex-col items-center">
-                        <input 
-                            type="date"
-                            value={toDateInputValue(statsConfig.date)}
-                            onChange={handleDateChange}
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 font-bold text-sm outline-none focus:border-blue-400"
-                        />
-                        <div className="text-[10px] text-slate-400 mt-1 font-bold">
-                            (选中日期所在周: {getStartOfWeek(statsConfig.date).toLocaleDateString()} 起)
-                        </div>
-                     </div>
-                 )}
-
-                 {statsConfig.type === 'month' && (
+                     <span className="text-slate-300 font-bold">-</span>
                      <input 
-                        type="month"
-                        value={toMonthInputValue(statsConfig.date)}
-                        onChange={handleDateChange}
-                        className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 font-bold text-sm outline-none focus:border-blue-400"
+                        type="date"
+                        value={statsConfig.customEnd ? toDateInputValue(statsConfig.customEnd) : ''}
+                        onChange={(e) => handleCustomDateChange('customEnd', e.target.value)}
+                        className="bg-white border border-slate-200 rounded-xl px-2 py-2 text-slate-600 font-bold text-xs outline-none focus:border-blue-400 w-full text-center shadow-sm"
                      />
-                 )}
-
-                 {statsConfig.type === 'custom' && (
-                     <div className="flex items-center gap-2">
-                         <input 
-                            type="date"
-                            value={statsConfig.customStart ? toDateInputValue(statsConfig.customStart) : ''}
-                            onChange={(e) => handleCustomDateChange('customStart', e.target.value)}
-                            className="w-32 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 font-bold text-xs outline-none focus:border-blue-400"
-                         />
-                         <span className="text-slate-300">-</span>
-                         <input 
-                            type="date"
-                            value={statsConfig.customEnd ? toDateInputValue(statsConfig.customEnd) : ''}
-                            onChange={(e) => handleCustomDateChange('customEnd', e.target.value)}
-                            className="w-32 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 font-bold text-xs outline-none focus:border-blue-400"
-                         />
-                     </div>
-                 )}
-             </div>
+                 </div>
+             )}
           </div>
       </div>
 
