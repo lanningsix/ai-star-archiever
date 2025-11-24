@@ -15,16 +15,18 @@ const NavBtn = ({ icon, label, active, onClick, activeClass }: { icon: React.Rea
     return (
         <button 
             onClick={onClick}
-            className={`flex flex-col items-center justify-center w-14 transition-all duration-300 group ${active ? '-translate-y-1' : 'text-slate-300 hover:text-slate-400'}`}
+            className={`flex flex-col items-center justify-center w-16 transition-all duration-300 group ${active ? '-translate-y-2' : 'text-slate-300 hover:text-slate-400'}`}
         >
-            <div className={`p-2.5 rounded-xl transition-all duration-300 ${active ? `${bgClass} shadow-sm rotate-3 scale-110` : 'group-hover:bg-slate-50'}`}>
+            <div className={`p-2.5 rounded-2xl transition-all duration-300 ${active ? `${bgClass} shadow-sm rotate-3 scale-110` : 'group-hover:bg-slate-50'}`}>
                 {React.cloneElement(icon as React.ReactElement<any>, { 
                     size: 22, 
-                    strokeWidth: active ? 3 : 2.5,
+                    strokeWidth: active ? 2.5 : 2,
                     className: active ? activeClass : "currentColor"
                 })}
             </div>
-            <span className={`text-[10px] font-bold mt-1 transition-opacity duration-300 ${active ? `opacity-100 ${activeClass}` : 'opacity-0'}`}>{label}</span>
+            <span className={`text-[10px] font-bold mt-1 transition-all duration-300 absolute -bottom-4 whitespace-nowrap ${active ? `opacity-100 translate-y-0 ${activeClass}` : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
+                {label}
+            </span>
         </button>
     );
 }
@@ -33,8 +35,8 @@ export const NavBar: React.FC<NavBarProps> = ({ activeTab, setActiveTab, themeKe
   const theme = THEMES[themeKey];
   
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30">
-        <div className="bg-white/95 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] border-t border-white w-full px-1 h-[5.5rem] flex justify-around items-center pb-4">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none px-4 md:px-6">
+        <div className="bg-white/95 backdrop-blur-xl rounded-t-[2rem] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] border-t border-white w-full max-w-5xl px-2 md:px-8 h-[5.2rem] flex justify-around items-center pb-1 pointer-events-auto">
             <NavBtn icon={<CheckCircle2 />} label="打卡" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} activeClass={theme.accent} />
             <NavBtn icon={<ShoppingBag />} label="商城" active={activeTab === 'store'} onClick={() => setActiveTab('store')} activeClass={theme.accent} />
             <NavBtn icon={<BarChart2 />} label="分析" active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} activeClass={theme.accent} />
