@@ -158,19 +158,43 @@ export const StoreView: React.FC<StoreViewProps> = ({ rewards, balance, onRedeem
                 const isConfirming = confirmId === reward.id;
                 const canAfford = balance >= reward.cost;
                 
+                // Progress Logic
+                const progress = Math.min(100, (balance / reward.cost) * 100);
+                const remaining = Math.max(0, reward.cost - balance);
+
                 return (
                     <div key={reward.id} className={`bg-white rounded-[1.8rem] p-4 flex flex-col items-center shadow-[0_4px_0_0_rgba(0,0,0,0.04)] border-2 border-slate-100 relative overflow-hidden hover:${theme.border} transition-all duration-300 group`}>
-                        <div className="text-5xl mb-3 transform group-hover:scale-110 transition-transform duration-300 drop-shadow-sm mt-2">
+                        <div className="text-5xl mb-2 transform group-hover:scale-110 transition-transform duration-300 drop-shadow-sm mt-2">
                             {reward.icon}
                         </div>
-                        <h3 className="font-bold text-slate-700 text-center mb-3 text-base h-10 flex items-center justify-center leading-tight px-1">
+                        <h3 className="font-bold text-slate-700 text-center mb-2 text-base h-10 flex items-center justify-center leading-tight px-1">
                             {reward.title}
                         </h3>
                         
+                        {/* Progress Bar */}
+                        <div className="w-full px-2 mb-3">
+                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                    className={`h-full rounded-full transition-all duration-500 ${canAfford ? 'bg-emerald-400' : 'bg-orange-300'}`} 
+                                    style={{ width: `${progress}%` }}
+                                ></div>
+                            </div>
+                            {!canAfford && (
+                                <div className="text-center mt-1 text-[10px] text-orange-400 font-bold">
+                                    还差 {remaining} 星
+                                </div>
+                            )}
+                            {canAfford && (
+                                <div className="text-center mt-1 text-[10px] text-emerald-500 font-bold">
+                                    可兑换
+                                </div>
+                            )}
+                        </div>
+
                         <button 
                             onClick={() => handleClick(reward)}
                             className={`
-                                w-full py-2.5 rounded-xl font-cute text-lg text-white flex items-center justify-center gap-2 transition-all bounce-click shadow-md
+                                w-full py-2 rounded-xl font-cute text-lg text-white flex items-center justify-center gap-2 transition-all bounce-click shadow-md
                                 ${!canAfford 
                                     ? 'bg-slate-200 cursor-not-allowed text-slate-400 shadow-none' 
                                     : isConfirming 
