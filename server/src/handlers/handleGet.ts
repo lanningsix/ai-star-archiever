@@ -52,20 +52,20 @@ export async function handleGet(request: Request, env: any, familyId: string) {
             txSql += " AND date >= ? AND date <= ?";
             params.push(startDate);
             params.push(endDate);
-            txSql += " ORDER BY created_at DESC";
+            txSql += " ORDER BY updated_at DESC";
         } else if (dateParam) {
             // Filter by specific date (prefix match YYYY-MM-DD)
             txSql += " AND date LIKE ?";
             params.push(`${dateParam}%`);
-            txSql += " ORDER BY created_at DESC";
+            txSql += " ORDER BY updated_at DESC";
         } else if (month) {
             // If month is provided (YYYY-MM), filter by date string
             txSql += " AND date LIKE ?";
             params.push(`${month}%`);
-            txSql += " ORDER BY created_at DESC";
+            txSql += " ORDER BY updated_at DESC";
         } else {
             // If no date/month provided, fetch recent history with a much larger limit
-            txSql += " ORDER BY created_at DESC LIMIT 5000";
+            txSql += " ORDER BY updated_at DESC LIMIT 5000";
         }
 
         promises.push(env.DB.prepare(txSql).bind(...params).all().then((r: any) => txResult = r));

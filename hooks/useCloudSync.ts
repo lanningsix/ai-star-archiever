@@ -61,7 +61,8 @@ export const useCloudSync = (
                         const newTx = data.transactions || [];
                         const existingIds = new Set(prev.map(t => t.id));
                         const uniqueNew = newTx.filter(t => !existingIds.has(t.id));
-                        return [...prev, ...uniqueNew].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                        // Sort by timestamp (updated_at) desc, fallback to date
+                        return [...prev, ...uniqueNew].sort((a, b) => (b.timestamp || new Date(b.date).getTime()) - (a.timestamp || new Date(a.date).getTime()));
                     });
                 }
 

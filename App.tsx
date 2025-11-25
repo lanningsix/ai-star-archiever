@@ -24,6 +24,9 @@ import { WishlistModal } from './components/modals/WishlistModal';
 import { AchievementModal } from './components/modals/AchievementModal';
 import { MysteryBoxModal } from './components/modals/MysteryBoxModal';
 
+// Effects
+import { RedemptionEffect } from './components/RedemptionEffect';
+
 export default function App() {
   const { state, actions } = useAppLogic();
   const activeTheme = THEMES[state.themeKey];
@@ -157,8 +160,10 @@ export default function App() {
         onClose={actions.hideToast} 
       />
 
+      {/* Overlays and Effects */}
       <CelebrationOverlay isVisible={state.showCelebration.show} points={state.showCelebration.points} type={state.showCelebration.type} />
-      
+      <RedemptionEffect reward={state.redemptionPop} />
+
       {/* NEW UNLOCKED Achievement Modal (Celebration) */}
       <AchievementModal 
         achievement={state.newUnlocked} 

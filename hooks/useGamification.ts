@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { AUDIO_RESOURCES, ACHIEVEMENTS } from '../constants';
-import { Achievement, Task, Transaction, TaskCategory } from '../types';
+import { Achievement, Task, Transaction, TaskCategory, Reward } from '../types';
 
 interface GamificationProps {
     unlockedAchievements: string[];
@@ -36,6 +36,9 @@ export const useGamification = ({
     const [newUnlocked, setNewUnlocked] = useState<Achievement | null>(null);
     const [pendingUnlocked, setPendingUnlocked] = useState<Achievement | null>(null);
     const [mysteryReward, setMysteryReward] = useState<{ title: string, icon: string, bonusStars?: number } | null>(null);
+    
+    // NEW: Redemption Animation State
+    const [redemptionPop, setRedemptionPop] = useState<Reward | null>(null);
 
     useEffect(() => {
         showCelebrationRef.current = showCelebration;
@@ -119,6 +122,24 @@ export const useGamification = ({
           });
         }, 250);
     }, [safeConfetti]);
+
+    // NEW: Trigger Redemption Flow
+    const triggerRedemption = useCallback((reward: Reward) => {
+        setRedemptionPop(reward);
+        playRandomSound('success');
+        safeConfetti({ 
+            particleCount: 150, 
+            spread: 100, 
+            origin: { y: 0.6 }, 
+            colors: ['#FFD700', '#F472B6', '#A78BFA', '#34D399'],
+            zIndex: 200
+        });
+        
+        // Auto hide after animation
+        setTimeout(() => {
+            setRedemptionPop(null);
+        }, 2500);
+    }, [playRandomSound, safeConfetti]);
 
     // --- Achievement Logic ---
     useEffect(() => {
@@ -227,6 +248,8 @@ export const useGamification = ({
         triggerStarConfetti,
         triggerRainConfetti,
         triggerRandomCelebration,
-        triggerFireworks
+        triggerFireworks,
+        redemptionPop,
+        triggerRedemption
     };
 };

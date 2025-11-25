@@ -29,7 +29,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ currentDate, setCurr
         const txDate = new Date(tx.date);
         return getDateKey(txDate) === dateKey;
     })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => (b.timestamp || new Date(b.date).getTime()) - (a.timestamp || new Date(a.date).getTime()));
 
   let dailyEarned = 0;
   let dailySpent = 0;

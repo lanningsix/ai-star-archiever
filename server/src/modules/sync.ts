@@ -48,17 +48,17 @@ export async function handleSync(request: Request, env: any, familyId: string, s
             txSql += " AND date >= ? AND date <= ?";
             params.push(startDate);
             params.push(endDate);
-            txSql += " ORDER BY created_at DESC";
+            txSql += " ORDER BY updated_at DESC";
         } else if (dateParam) {
             txSql += " AND date LIKE ?";
             params.push(`${dateParam}%`);
-            txSql += " ORDER BY created_at DESC";
+            txSql += " ORDER BY updated_at DESC";
         } else if (month) {
             txSql += " AND date LIKE ?";
             params.push(`${month}%`);
-            txSql += " ORDER BY created_at DESC";
+            txSql += " ORDER BY updated_at DESC";
         } else {
-            txSql += " ORDER BY created_at DESC LIMIT 5000";
+            txSql += " ORDER BY updated_at DESC LIMIT 5000";
         }
 
         promises.push(env.DB.prepare(txSql).bind(...params).all().then((r: any) => txResult = r));

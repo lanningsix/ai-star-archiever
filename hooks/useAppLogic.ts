@@ -260,7 +260,8 @@ export const useAppLogic = () => {
           
           const newTransactions = [...transactions];
           newTransactions[relevantTxIndex] = newTx;
-          newTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          // Sort by timestamp desc
+          newTransactions.sort((a, b) => (b.timestamp || new Date(b.date).getTime()) - (a.timestamp || new Date(a.date).getTime()));
 
           setTransactions(newTransactions);
           setBalance(newBalance);
@@ -300,7 +301,8 @@ export const useAppLogic = () => {
 
           const newTransactions = [...transactions];
           newTransactions[relevantTxIndex] = newTx;
-          newTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          // Sort by timestamp desc
+          newTransactions.sort((a, b) => (b.timestamp || new Date(b.date).getTime()) - (a.timestamp || new Date(a.date).getTime()));
 
           setTransactions(newTransactions);
           setBalance(newBalance);
@@ -355,10 +357,11 @@ export const useAppLogic = () => {
           if (familyId && cloud.isSyncReady) {
               cloud.syncData('record_transaction', { transaction: txData.newTx }, true);
           }
-          gamification.safeConfetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#FF7EB3', '#7AFCB0', '#7FD8FE'] });
-          showToast(`成功兑换：${reward.title}`, 'success');
-          gamification.playRandomSound('success');
-          setTimeout(() => setIsInteractionBlocked(false), 1000);
+          
+          // Trigger the big flying animation
+          gamification.triggerRedemption(reward);
+          
+          setTimeout(() => setIsInteractionBlocked(false), 2000); // Block until animation mostly done
       } catch (error) {
           setIsInteractionBlocked(false);
       }
@@ -479,6 +482,7 @@ export const useAppLogic = () => {
       isLoading: cloud.isLoading,
       mysteryReward: gamification.mysteryReward,
       statsConfig,
+      redemptionPop: gamification.redemptionPop
     },
     actions: {
       setActiveTab, setCurrentDate, setUserName, setThemeKey, setFamilyId,
